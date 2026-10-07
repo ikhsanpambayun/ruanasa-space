@@ -11,6 +11,10 @@ const DEFAULT_ERRORS: Record<
     message: 'Input tidak valid',
     errorCode: ERROR_CODES.VALIDATION_ERROR,
   },
+  [HttpStatus.UNPROCESSABLE_ENTITY]: {
+    message: 'Input tidak valid',
+    errorCode: ERROR_CODES.VALIDATION_ERROR,
+  },
   [HttpStatus.UNAUTHORIZED]: {
     message: 'Token tidak valid atau expired',
     errorCode: ERROR_CODES.UNAUTHORIZED,

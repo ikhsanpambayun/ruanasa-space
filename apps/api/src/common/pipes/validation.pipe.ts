@@ -1,5 +1,5 @@
 import {
-  BadRequestException,
+  UnprocessableEntityException,
   ValidationPipe,
   type ValidationError,
 } from '@nestjs/common';
@@ -46,7 +46,7 @@ export function createValidationPipe(): ValidationPipe {
     forbidNonWhitelisted: true,
     transform: true,
     exceptionFactory: (errors: ValidationError[]) =>
-      new BadRequestException({
+      new UnprocessableEntityException({
         message: 'Input tidak valid',
         error_code: ERROR_CODES.VALIDATION_ERROR,
         errors: flattenValidationErrors(errors),
