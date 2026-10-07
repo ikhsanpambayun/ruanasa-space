@@ -97,10 +97,15 @@ export class TokenService {
    *
    * @param token - temp_token dari client.
    * @param purpose - Tujuan yang diharapkan endpoint.
-   * @returns Payload temp_token.
+   * @param requiredClaim - Klaim yang wajib ada di token (data terverifikasi yang akan dipakai endpoint).
+   * @returns Payload temp_token dengan klaim wajib dijamin bertipe string.
    * @throws AppException 401 UNAUTHORIZED bila tidak valid.
    */
-  verifyTempToken(token: string, purpose: TempTokenPurpose): TempTokenPayload {
+  verifyTempToken<K extends keyof TempTokenClaims>(
+    token: string,
+    purpose: TempTokenPurpose,
+    requiredClaim: K,
+  ): TempTokenPayload & Required<Pick<TempTokenClaims, K>> {
     let payload: TempTokenPayload;
     try {
       payload = this.jwt.verify<TempTokenPayload>(token, {
@@ -113,10 +118,13 @@ export class TokenService {
     if (payload.purpose !== purpose || typeof payload.jti !== 'string') {
       throw this.invalidTempToken();
     }
+    if (typeof payload[requiredClaim] !== 'string') {
+      throw this.invalidTempToken();
+    }
     if (this.blacklist.isTempTokenUsed(payload.jti)) {
       throw this.invalidTempToken();
     }
-    return payload;
+    return payload as TempTokenPayload & Required<Pick<TempTokenClaims, K>>;
   }
 
   /**

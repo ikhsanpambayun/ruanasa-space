@@ -5,10 +5,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
 import type { Env } from '../../config/env.validation';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SessionRefreshInterceptor } from './interceptors/session-refresh.interceptor';
+import { OtpService } from './otp/otp.service';
+import { InMemoryOtpStore, OtpStore } from './otp/otp.store';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { TokenBlacklistStore } from './token-blacklist.store';
 import { TokenService } from './token.service';
@@ -29,10 +32,13 @@ import { TokenService } from './token.service';
       }),
     }),
     UsersModule,
+    NotificationsModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
+    OtpService,
+    { provide: OtpStore, useClass: InMemoryOtpStore },
     TokenService,
     TokenBlacklistStore,
     JwtStrategy,

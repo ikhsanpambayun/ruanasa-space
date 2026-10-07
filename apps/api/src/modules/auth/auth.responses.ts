@@ -39,6 +39,18 @@ export interface ParticipantSessionResponse extends SessionResponse<UserResponse
 }
 
 /**
+ * Response verifikasi OTP untuk user baru: profil belum lengkap, perlu temp_token ke endpoint `complete`.
+ * Alur email membawa `email`; alur WhatsApp membawa `phone_number`.
+ */
+export interface PendingProfileResponse {
+  temp_token: string;
+  email?: string;
+  phone_number?: string;
+  is_new_user: true;
+  requires_profile: true;
+}
+
+/**
  * Memetakan baris database ke response user peserta (snake_case).
  *
  * @param user - Baris tabel users.
