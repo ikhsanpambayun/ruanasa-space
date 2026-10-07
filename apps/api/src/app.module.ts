@@ -12,6 +12,8 @@ import { AddonsModule } from './modules/addons/addons.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { DiscountsModule } from './modules/discounts/discounts.module';
 import { EventsModule } from './modules/events/events.module';
 import { ExportsModule } from './modules/exports/exports.module';
@@ -62,6 +64,12 @@ import { UsersModule } from './modules/users/users.module';
     UploadsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  // Urutan guard: rate limit -> autentikasi JWT -> role.
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
 export class AppModule {}

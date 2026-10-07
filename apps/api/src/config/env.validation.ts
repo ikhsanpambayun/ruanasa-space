@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { DURATION_PATTERN } from '../common/utils/duration.util';
+
 /**
  * Skema environment variables backend (TAD v1.6 Section 21.2).
  * Variabel layanan eksternal (Google, Midtrans, WhatsApp, Email, Supabase) opsional sampai modul
@@ -17,7 +19,13 @@ const envSchema = z.object({
   DIRECT_URL: z.string().min(1, 'DIRECT_URL wajib diisi'),
 
   JWT_SECRET: z.string().min(32, 'JWT_SECRET minimal 32 karakter (256-bit)'),
-  JWT_EXPIRY: z.string().min(1).default('7d'),
+  JWT_EXPIRY: z
+    .string()
+    .regex(
+      DURATION_PATTERN,
+      'JWT_EXPIRY harus berformat seperti 7d, 12h, atau 30m',
+    )
+    .default('7d'),
 
   CORS_ORIGINS: z.string().optional(),
 

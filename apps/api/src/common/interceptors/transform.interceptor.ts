@@ -9,6 +9,7 @@ import { Observable, map } from 'rxjs';
 
 import { RESPONSE_MESSAGE_KEY } from '../decorators/response-message.decorator';
 import { PaginatedResult, type PaginationMeta } from '../dto/paginated-result';
+import { ResponseWithMessage } from '../dto/response-with-message';
 
 /**
  * Bentuk response sukses standar (API Spec v1.6 Section 2.2).
@@ -53,6 +54,13 @@ export class TransformInterceptor<T> implements NestInterceptor<
 
     return next.handle().pipe(
       map((result): SuccessBody<T | T[] | null> => {
+        if (result instanceof ResponseWithMessage) {
+          return {
+            success: true,
+            message: result.message,
+            data: result.data as T,
+          };
+        }
         if (result instanceof PaginatedResult) {
           return {
             success: true,

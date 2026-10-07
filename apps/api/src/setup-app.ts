@@ -1,6 +1,7 @@
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
 
 import { buildCorsOptions } from './config/cors.config';
 import type { Env } from './config/env.validation';
@@ -30,6 +31,7 @@ export function setupApp(app: NestExpressApplication): void {
     app.set('trust proxy', 1);
   }
 
+  app.use(cookieParser());
   app.setGlobalPrefix(API_PREFIX);
   app.enableCors(buildCorsOptions(config.get('corsOrigins', { infer: true })));
   app.useGlobalPipes(createValidationPipe());

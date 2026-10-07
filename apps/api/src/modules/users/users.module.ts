@@ -1,7 +1,12 @@
-﻿import { Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+
+import { UsersRepository } from './users.repository';
 
 /**
- * Modul users. Controller, service, dan repository ditambahkan pada task fase terkait (DTBD v1.6).
+ * Modul users. Controller dan service profil ditambahkan di P3-BE-001.
  */
-@Module({})
+@Module({
+  providers: [UsersRepository],
+  exports: [UsersRepository],
+})
 export class UsersModule {}
