@@ -51,6 +51,17 @@ export interface PendingProfileResponse {
 }
 
 /**
+ * Response login Google untuk user baru: perlu nomor telepon, dilengkapi lewat `POST /auth/google/complete`.
+ */
+export interface PendingPhoneResponse {
+  temp_token: string;
+  name: string;
+  email: string;
+  is_new_user: true;
+  requires_phone: true;
+}
+
+/**
  * Memetakan baris database ke response user peserta (snake_case).
  *
  * @param user - Baris tabel users.

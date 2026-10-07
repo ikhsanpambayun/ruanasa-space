@@ -24,6 +24,7 @@ import {
   toUserResponse,
   type AdminUserResponse,
   type ParticipantSessionResponse,
+  type PendingPhoneResponse,
   type PendingProfileResponse,
   type SessionResponse,
   type UserResponse,
@@ -35,6 +36,10 @@ import {
 } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { AutoCreateDto } from './dto/auto-create.dto';
+import {
+  CompleteGoogleRegistrationDto,
+  GoogleLoginDto,
+} from './dto/google.dto';
 import {
   CompleteEmailRegistrationDto,
   CompleteWhatsAppRegistrationDto,
@@ -99,6 +104,66 @@ export class AuthController {
     );
     const token = this.startSession(res, user);
     return { token, user: toUserResponse(user), is_new_user: true };
+  }
+
+  /**
+   * POST /auth/google: login dengan Google ID token; user lama login, user baru mendapat temp_token.
+   *
+   * @param dto - ID token dari Google Sign-In.
+   * @param res - Response (untuk cookie sesi bila login).
+   * @returns Sesi login, atau data untuk melengkapi nomor telepon.
+   */
+  @Public()
+  @AuthRateLimit()
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async googleLogin(
+    @Body() dto: GoogleLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<
+    ResponseWithMessage<ParticipantSessionResponse | PendingPhoneResponse>
+  > {
+    const result = await this.auth.googleLogin(dto.id_token);
+    if (result.kind === 'existing') {
+      const token = this.startSession(res, result.user);
+      return new ResponseWithMessage(
+        { token, user: toUserResponse(result.user), is_new_user: false },
+        'Login berhasil',
+      );
+    }
+    return new ResponseWithMessage(
+      {
+        temp_token: result.tempToken,
+        name: result.name,
+        email: result.email,
+        is_new_user: true,
+        requires_phone: true,
+      },
+      'Akun baru, lengkapi nomor telepon',
+    );
+  }
+
+  /**
+   * POST /auth/google/complete: melengkapi registrasi user baru dari Google dengan nomor telepon.
+   *
+   * @param dto - temp_token dan nomor telepon.
+   * @param res - Response (untuk cookie sesi).
+   * @returns Token dan data user baru.
+   */
+  @Public()
+  @AuthRateLimit()
+  @Post('google/complete')
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Registrasi berhasil')
+  async completeGoogleRegistration(
+    @Body() dto: CompleteGoogleRegistrationDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<SessionResponse<UserResponse>> {
+    const user = await this.auth.completeGoogleRegistration(
+      dto.temp_token,
+      dto.phone_number,
+    );
+    return { token: this.startSession(res, user), user: toUserResponse(user) };
   }
 
   /**

@@ -93,13 +93,13 @@ Legenda: `[ ]` belum · `[~]` sebagian (scaffold ada, belum diverifikasi terhada
 ### M2 — Auth & Master Data (Phase 2–3)
 
 **Phase 2 — Auth**
-- [ ] P2-BE-001 JWT Authentication Core
-- [ ] P2-BE-002 Role-Based Authorization
-- [ ] P2-BE-003 Google OAuth Login
-- [ ] P2-BE-004 Email OTP Authentication
-- [ ] P2-BE-005 WhatsApp OTP Authentication
-- [ ] P2-BE-006 Auto Account Creation (Continue Without Login)
-- [ ] P2-BE-007 Admin Login
+- [x] P2-BE-001 JWT Authentication Core *(2026-10-07: HS256, payload `{sub, role, iat, exp}`, 7 hari, cookie httpOnly + Bearer (cookie diprioritaskan), sliding window, blacklist logout. Diuji: token kedaluwarsa, tanda tangan palsu, `alg: none`, temp_token sebagai token akses)*
+- [x] P2-BE-002 Role-Based Authorization *(2026-10-07: guard JWT global secure-by-default (`@Public()` untuk membuka), `@Roles`, role dibaca ulang dari database)*
+- [~] P2-BE-003 Google OAuth Login *(2026-10-07: logika, temp_token, account linking diuji; verifier asli menolak token palsu. Belum diuji dengan ID token Google sungguhan: butuh GOOGLE_CLIENT_ID dan login dari frontend)*
+- [~] P2-BE-004 Email OTP Authentication *(2026-10-07: seluruh aturan OTP diuji, termasuk di Supabase dengan adapter console. Pengiriman nyata via Resend belum diuji: butuh EMAIL_API_KEY dan domain terverifikasi)*
+- [~] P2-BE-005 WhatsApp OTP Authentication *(2026-10-07: sama dengan Email OTP. Pengiriman nyata via Fonnte belum diuji: butuh WHATSAPP_API_KEY dan device aktif)*
+- [x] P2-BE-006 Auto Account Creation (Continue Without Login) *(2026-10-07: diuji di Supabase termasuk pendaftaran serentak dengan nomor sama)*
+- [x] P2-BE-007 Admin Login *(2026-10-07: diuji dengan akun seed di Supabase)*
 
 **Phase 3 — Core Backend**
 - [ ] P3-BE-001 User Profile API
@@ -214,3 +214,4 @@ Dari CHANGELOG 2026-10-06, keputusan skema ini diterapkan di dokumen tetapi masi
 | 2026-10-06 | M1 | Phase 0 selesai (P0-INF-001 s.d. 004). P0-INF-002 masih `[~]` menunggu uji runtime frontend. Berikutnya: Phase 1 (database) |
 | 2026-10-06 | M1 | Phase 1 ditulis penuh (schema, migrasi, seed, PrismaService) tapi belum dijalankan terhadap database: menunggu kredensial PostgreSQL. Gerbang M1 belum terpenuhi |
 | 2026-10-07 | M1 | Phase 1 selesai dan terverifikasi di Supabase (21 pemeriksaan data nyata lulus). Gerbang M1 terpenuhi, kecuali catatan P0-INF-002 (uji runtime frontend). Berikutnya: Phase 2 (Auth) |
+| 2026-10-07 | M2 | Phase 2 selesai di branch `feature/auth-authentication` (113 unit + 70 e2e test; 33 pemeriksaan di Supabase). Tiga task bertanda `[~]` karena integrasi eksternal (Google, Resend, Fonnte) butuh kredensial untuk uji nyata |

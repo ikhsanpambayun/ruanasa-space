@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import type { AuthProvider, User } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
 
@@ -13,6 +13,10 @@ import {
   type CreateUserData,
 } from '../users/users.repository';
 import type { IssuedToken } from './auth.types';
+import {
+  GOOGLE_TOKEN_VERIFIER,
+  type GoogleTokenVerifier,
+} from './google/google-token.verifier';
 import { OtpService, type OtpRequestResult } from './otp/otp.service';
 import { TokenService } from './token.service';
 
@@ -26,6 +30,16 @@ export type OtpVerifyResult =
 export interface OtpRequestOutcome extends OtpRequestResult {
   is_existing_user: boolean;
 }
+
+/**
+ * Hasil login Google: user lama langsung login, user baru diminta melengkapi nomor telepon.
+ */
+export type GoogleLoginResult =
+  | { kind: 'existing'; user: User }
+  | { kind: 'new'; tempToken: string; name: string; email: string };
+
+const MAX_NAME_LENGTH = 100;
+const MAX_PICTURE_URL_LENGTH = 500;
 
 const PHONE_EXISTS_MESSAGE =
   'Nomor telepon ini sudah terdaftar, silakan login untuk melanjutkan';
@@ -48,6 +62,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly users: UsersRepository,
     private readonly otp: OtpService,
+    @Inject(GOOGLE_TOKEN_VERIFIER) private readonly google: GoogleTokenVerifier,
   ) {}
 
   /**
@@ -124,6 +139,88 @@ export class AuthService {
       email,
       authProvider: 'auto_created',
     });
+  }
+
+  /**
+   * Login dengan Google (P2-BE-003). ID token diverifikasi (tanda tangan, audience, masa berlaku) dan
+   * email Google wajib sudah terverifikasi. User lama login dan auth_provider diperbarui ke `google`
+   * (account linking); user baru menerima temp_token untuk melengkapi nomor telepon.
+   *
+   * @param idToken - ID token dari Google Sign-In.
+   * @returns User yang login, atau temp_token untuk registrasi.
+   * @throws AppException 401 INVALID_GOOGLE_TOKEN bila token tidak valid atau email belum terverifikasi.
+   */
+  async googleLogin(idToken: string): Promise<GoogleLoginResult> {
+    const identity = await this.google.verify(idToken);
+    if (!identity?.emailVerified) {
+      throw new AppException(
+        HttpStatus.UNAUTHORIZED,
+        ERROR_CODES.INVALID_GOOGLE_TOKEN,
+        'Token Google tidak valid',
+      );
+    }
+
+    const existing = await this.users.findByEmail(identity.email);
+    if (existing) {
+      return {
+        kind: 'existing',
+        user: await this.loginParticipant(existing, 'google'),
+      };
+    }
+
+    const name = (
+      identity.name?.trim() ||
+      identity.email.split('@')[0] ||
+      identity.email
+    ).slice(0, MAX_NAME_LENGTH);
+    const picture =
+      identity.picture && identity.picture.length <= MAX_PICTURE_URL_LENGTH
+        ? identity.picture
+        : undefined;
+    return {
+      kind: 'new',
+      name,
+      email: identity.email,
+      tempToken: this.tokens.signTempToken('google_complete', {
+        email: identity.email,
+        name,
+        picture,
+      }),
+    };
+  }
+
+  /**
+   * Menyelesaikan registrasi user baru dari Google dengan nomor telepon.
+   *
+   * @param tempToken - temp_token dari langkah login Google.
+   * @param phoneNumber - Nomor telepon kanonik.
+   * @returns User baru dengan auth_provider `google`.
+   * @throws AppException 401 bila temp_token tidak valid; 409 PHONE_ALREADY_EXISTS / EMAIL_ALREADY_EXISTS.
+   */
+  async completeGoogleRegistration(
+    tempToken: string,
+    phoneNumber: string,
+  ): Promise<User> {
+    const payload = this.tokens.verifyTempToken(
+      tempToken,
+      'google_complete',
+      'email',
+    );
+    if (await this.users.findByPhone(phoneNumber)) {
+      throw this.phoneExists();
+    }
+    if (await this.users.findByEmail(payload.email)) {
+      throw this.emailExists();
+    }
+    const user = await this.createUser({
+      name: payload.name ?? payload.email.split('@')[0] ?? payload.email,
+      phoneNumber,
+      email: payload.email,
+      authProvider: 'google',
+      profilePicture: payload.picture ?? null,
+    });
+    this.tokens.consumeTempToken(payload);
+    return user;
   }
 
   /**

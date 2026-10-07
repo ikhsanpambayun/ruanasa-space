@@ -9,6 +9,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import {
+  createGoogleTokenVerifier,
+  GOOGLE_TOKEN_VERIFIER,
+} from './google/google-token.verifier';
 import { SessionRefreshInterceptor } from './interceptors/session-refresh.interceptor';
 import { OtpService } from './otp/otp.service';
 import { InMemoryOtpStore, OtpStore } from './otp/otp.store';
@@ -39,6 +43,12 @@ import { TokenService } from './token.service';
     AuthService,
     OtpService,
     { provide: OtpStore, useClass: InMemoryOtpStore },
+    {
+      provide: GOOGLE_TOKEN_VERIFIER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) =>
+        createGoogleTokenVerifier(config),
+    },
     TokenService,
     TokenBlacklistStore,
     JwtStrategy,

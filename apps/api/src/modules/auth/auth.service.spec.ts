@@ -1,6 +1,7 @@
 import type { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
+import { FakeGoogleVerifier } from '../../../test/helpers/fake-google-verifier';
 import { FakeUsersRepository } from '../../../test/helpers/fake-users.repository';
 import {
   CapturingEmailProvider,
@@ -41,6 +42,7 @@ describe('AuthService OTP registration and login flows', () => {
   let users: FakeUsersRepository;
   let email: CapturingEmailProvider;
   let whatsapp: CapturingWhatsAppProvider;
+  let google: FakeGoogleVerifier;
   let tokens: TokenService;
   let jwt: JwtService;
   let otpStore: InMemoryOtpStore;
@@ -68,6 +70,7 @@ describe('AuthService OTP registration and login flows', () => {
     users = new FakeUsersRepository();
     email = new CapturingEmailProvider();
     whatsapp = new CapturingWhatsAppProvider();
+    google = new FakeGoogleVerifier();
     jwt = new JwtService({
       secret: SECRET,
       signOptions: { algorithm: 'HS256' },
@@ -82,6 +85,7 @@ describe('AuthService OTP registration and login flows', () => {
       tokens,
       users as unknown as UsersRepository,
       new OtpService(otpStore, email, whatsapp),
+      google,
     );
   });
 
@@ -408,6 +412,150 @@ describe('AuthService OTP registration and login flows', () => {
       );
 
       expect(error?.status).toBe(401);
+    });
+  });
+  describe('Google', () => {
+    const VERIFIED = {
+      email: 'gina@example.com',
+      emailVerified: true,
+      name: 'Gina Putri',
+      picture: 'https://lh3.googleusercontent.com/a/gina',
+    };
+
+    beforeEach(() => {
+      google.register('valid-token', VERIFIED);
+    });
+
+    it('rejects an unknown or invalid id_token with 401 INVALID_GOOGLE_TOKEN', async () => {
+      const error = await errorOf(() => service.googleLogin('tidak-valid'));
+
+      expect(error?.status).toBe(401);
+      expect(error?.body).toMatchObject({
+        error_code: 'INVALID_GOOGLE_TOKEN',
+        message: 'Token Google tidak valid',
+      });
+    });
+
+    it('rejects a token whose Google email is not verified', async () => {
+      google.register('unverified', { ...VERIFIED, emailVerified: false });
+
+      const error = await errorOf(() => service.googleLogin('unverified'));
+
+      expect(error?.body).toMatchObject({ error_code: 'INVALID_GOOGLE_TOKEN' });
+    });
+
+    it('sends a new Google user to phone completion with name and email, without creating an account', async () => {
+      const result = await service.googleLogin('valid-token');
+
+      expect(result).toMatchObject({
+        kind: 'new',
+        name: 'Gina Putri',
+        email: 'gina@example.com',
+      });
+      expect(users.users.size).toBe(0);
+    });
+
+    it('logs an existing user in by email and links auth_provider to google', async () => {
+      const existing = users.add({
+        email: 'gina@example.com',
+        authProvider: 'auto_created',
+      });
+
+      const result = await service.googleLogin('valid-token');
+
+      expect(result).toMatchObject({
+        kind: 'existing',
+        user: { id: existing.id },
+      });
+      expect(users.users.get(existing.id)?.authProvider).toBe('google');
+    });
+
+    it('never logs an admin in through Google', async () => {
+      users.add({ email: 'gina@example.com', role: 'admin' });
+
+      const error = await errorOf(() => service.googleLogin('valid-token'));
+
+      expect(error?.body).toMatchObject({ error_code: 'AUTH_FAILED' });
+    });
+
+    it('falls back to the email local part when Google provides no name', async () => {
+      google.register('no-name', {
+        email: 'tanpa.nama@example.com',
+        emailVerified: true,
+      });
+
+      const result = await service.googleLogin('no-name');
+
+      expect(result).toMatchObject({ kind: 'new', name: 'tanpa.nama' });
+    });
+
+    it('creates the user on complete with provider google, Google name, and profile picture', async () => {
+      const result = await service.googleLogin('valid-token');
+      if (result.kind !== 'new') throw new Error('unreachable');
+
+      const user = await service.completeGoogleRegistration(
+        result.tempToken,
+        '081234567890',
+      );
+
+      expect(user).toMatchObject({
+        name: 'Gina Putri',
+        email: 'gina@example.com',
+        phoneNumber: '081234567890',
+        authProvider: 'google',
+        profilePicture: 'https://lh3.googleusercontent.com/a/gina',
+      });
+    });
+
+    it('rejects a taken phone with 409 PHONE_ALREADY_EXISTS and keeps the temp_token usable', async () => {
+      users.add({ phoneNumber: '081234567890' });
+      const result = await service.googleLogin('valid-token');
+      if (result.kind !== 'new') throw new Error('unreachable');
+
+      const error = await errorOf(() =>
+        service.completeGoogleRegistration(result.tempToken, '081234567890'),
+      );
+      expect(error?.status).toBe(409);
+      expect(error?.body).toMatchObject({ error_code: 'PHONE_ALREADY_EXISTS' });
+
+      await expect(
+        service.completeGoogleRegistration(result.tempToken, '089999999999'),
+      ).resolves.toMatchObject({
+        phoneNumber: '089999999999',
+      });
+    });
+
+    it('makes the Google temp_token single-use and rejects tokens from other flows', async () => {
+      const result = await service.googleLogin('valid-token');
+      if (result.kind !== 'new') throw new Error('unreachable');
+      await service.completeGoogleRegistration(
+        result.tempToken,
+        '081234567890',
+      );
+
+      expect(
+        (
+          await errorOf(() =>
+            service.completeGoogleRegistration(
+              result.tempToken,
+              '089999999999',
+            ),
+          )
+        )?.status,
+      ).toBe(401);
+
+      const emailFlow = await verifyEmail('lain@example.com');
+      if (emailFlow.kind !== 'new') throw new Error('unreachable');
+      expect(
+        (
+          await errorOf(() =>
+            service.completeGoogleRegistration(
+              emailFlow.tempToken,
+              '087777777777',
+            ),
+          )
+        )?.status,
+      ).toBe(401);
     });
   });
 });
