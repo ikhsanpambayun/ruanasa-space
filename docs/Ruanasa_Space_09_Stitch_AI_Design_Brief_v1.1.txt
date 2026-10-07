@@ -1,0 +1,801 @@
+STITCH AI DESIGN BRIEF
+
+Ruanasa Space — Wellness Event Management Platform
+
+Version: 1.1
+Purpose: Input brief untuk Stitch AI agar menghasilkan design system dan UI design yang konsisten dengan product specification Ruanasa Space.
+
+
+========================================================================
+1. PRODUCT OVERVIEW
+========================================================================
+
+1.1 Apa itu Ruanasa Space
+
+Ruanasa Space adalah platform berbasis web untuk mengelola aktivitas wellness community secara end-to-end. Pada tahap MVP, fokus pada operasional Yoga Class.
+
+Platform ini menggantikan proses manual (spreadsheet, chat WhatsApp, pencatatan pembayaran terpisah) menjadi satu sistem terintegrasi.
+
+1.2 Target Audience
+
+Participant:
+- Member komunitas wellness (yoga, meditation, breathwork)
+- Usia 20-45 tahun
+- Familiar dengan smartphone dan transaksi digital
+- Mengakses via mobile browser (Chrome, Safari)
+
+Admin (Ruanasa Team):
+- Pengelola operasional komunitas wellness
+- Mengakses via desktop browser
+- Mengelola event, peserta, pembayaran, dan analytics
+
+1.3 Brand Positioning
+
+"A digital space to manage wellness experiences, create meaningful moments, and grow a connected community."
+
+1.4 Brand Personality & Tone
+
+- Calm & Welcoming — platform wellness, bukan marketplace agresif
+- Clean & Minimal — mengurangi noise, fokus pada konten dan aksi
+- Trustworthy — transparan soal harga, status, dan informasi
+- Professional yet Warm — serius dalam operasional, hangat dalam komunikasi
+- Modern — desain kontemporer, bukan tradisional
+
+
+========================================================================
+2. PLATFORM & DEVICE REQUIREMENTS
+========================================================================
+
+2.1 Two Distinct Interfaces
+
+Platform ini memiliki DUA interface berbeda yang harus di-design secara terpisah:
+
+A) Participant Interface (Mobile-First)
+   - Primary device: mobile browser (360px - 768px)
+   - Secondary: tablet & desktop
+   - Navigasi sederhana, linear flow
+   - Touch-friendly (minimum tap target: 44x44px)
+   - Sticky CTA bar di bottom
+
+B) Admin Dashboard (Desktop-First)
+   - Primary device: desktop browser (1280px+)
+   - Secondary: tablet (768px - 1279px)
+   - Sidebar navigation (collapsible)
+   - Data-heavy tables dan forms
+   - Hover states, modal dialogs
+
+2.2 Responsive Breakpoints
+
+- Mobile: < 768px (single column, hamburger menu jika admin)
+- Tablet: 768px - 1279px (collapsed sidebar admin, 2-column layout)
+- Desktop: ≥ 1280px (full sidebar admin, multi-column layout)
+
+2.3 Browser Support
+
+Chrome, Safari, Firefox, Edge (2 versi terakhir masing-masing).
+
+
+========================================================================
+3. DESIGN PRINCIPLES
+========================================================================
+
+Lima prinsip design yang HARUS tercermin di setiap halaman:
+
+3.1 Simple
+Mengurangi kompleksitas proses registrasi. Participant dapat mendaftar event dalam hitungan menit dengan minimal input. Tidak ada UI yang membingungkan.
+
+3.2 Trustworthy
+Memberikan informasi jelas terkait event, harga, discount breakdown, pembayaran, dan status registrasi. Tidak ada biaya tersembunyi. Setiap angka transparan.
+
+3.3 Operational Efficiency
+Mempermudah admin mengelola event, peserta, pembayaran, dan feedback dalam satu dashboard tanpa berpindah platform. Dense but readable data display.
+
+3.4 Consistent
+Menggunakan design tokens (warna, typography, spacing) yang konsisten di seluruh halaman untuk membangun familiarity. Satu component = satu behavior di mana pun.
+
+3.5 Accessible
+Touch-friendly untuk mobile, keyboard-navigable untuk desktop, readable font size (minimum 14px body, 12px caption), dan kontras warna yang memadai (WCAG AA minimum).
+
+
+========================================================================
+4. DESIGN TOKEN REQUIREMENTS
+========================================================================
+
+Stitch AI harus menghasilkan design tokens lengkap untuk kategori berikut:
+
+4.1 Color System
+
+WAJIB memiliki:
+
+Primary Color:
+- Harus mencerminkan wellness, calm, nature
+- Digunakan pada: CTA buttons, active states, links, primary actions
+- Minimal 5 shade (50, 100, 300, 500, 700, 900)
+
+Secondary Color:
+- Warna pendukung/aksen
+- Digunakan pada: secondary buttons, accent elements, highlights
+- Minimal 5 shade
+
+Neutral/Gray Scale:
+- Skala abu-abu lengkap untuk text, border, background, divider
+- Minimal 10 shade (50, 100, 200, 300, 400, 500, 600, 700, 800, 900)
+- Gray-50/100 untuk backgrounds
+- Gray-200/300 untuk borders dan dividers
+- Gray-500/600 untuk secondary text
+- Gray-800/900 untuk primary text
+
+Semantic Colors (masing-masing minimal 3 shade: light, base, dark):
+- Success (hijau): pembayaran berhasil, registrasi confirmed, hadir, aktif
+- Warning (kuning/amber): pending payment, pending registration, event hampir penuh
+- Danger (merah): expired, failed, error states, delete action, full
+- Info (biru): informational badges, early bird, bundle discount, tips
+
+Background Colors:
+- Page background (sangat terang/putih)
+- Card background (putih atau sedikit lebih terang dari page)
+- Sidebar background (admin — bisa gelap atau terang)
+- Overlay/modal backdrop
+
+4.2 Typography
+
+Font Family:
+- Sans-serif modern yang mendukung Bahasa Indonesia (karakter Latin)
+- Rekomendasi: Inter, Plus Jakarta Sans, atau font wellness-appropriate
+- Pastikan tersedia di Google Fonts (gratis)
+
+Type Scale (harus didefinisikan dengan px size, line-height, dan font-weight):
+- Display: untuk hero/landing jika diperlukan
+- Heading 1: 24-32px / bold — judul halaman
+- Heading 2: 20px / semibold — section title
+- Heading 3: 16px / semibold — sub-section, card title
+- Body Large: 16px / regular — prominent body text
+- Body: 14px / regular — paragraph text, form labels
+- Body Small: 13px / regular — secondary information
+- Caption: 12px / regular — helper text, timestamps, secondary info
+- Overline: 11px / medium uppercase — badge text, status label
+
+4.3 Spacing System
+
+Menggunakan 4px base grid:
+- 4px (xs) — micro spacing
+- 8px (sm) — tight spacing between related elements
+- 12px (md) — default internal padding small elements
+- 16px (lg) — card padding mobile, gap between elements
+- 24px (xl) — card padding desktop, section spacing
+- 32px (2xl) — between major sections
+- 48px (3xl) — page-level spacing
+
+Specific patterns:
+- Card internal padding: 16px (mobile), 24px (desktop)
+- Gap between cards/sections: 16px (mobile), 24px (desktop)
+- Page side padding: 16px (mobile), 24-32px (tablet), 0 (desktop with max-width container)
+
+4.4 Border Radius
+
+- Small: 4px — input fields, badges, small tags
+- Medium: 8px — cards, buttons, containers
+- Large: 12px — modals, bottom sheets, large panels
+- Full: 999px — avatars, circular badges, pills
+
+4.5 Shadows & Elevation
+
+Definisikan minimal 3 level shadow:
+- Shadow-sm: subtle shadow untuk cards
+- Shadow-md: dropdown, floating elements
+- Shadow-lg: modal, overlay panels
+
+4.6 Animation & Transition
+
+- Default transition: 150-200ms ease
+- Page transitions: 200-300ms
+- Toast auto-dismiss: 4000ms
+- Skeleton shimmer animation
+- Button hover/press transitions
+
+
+========================================================================
+5. COMPONENT LIBRARY
+========================================================================
+
+Stitch AI harus men-design component berikut beserta SEMUA variants dan states:
+
+5.1 Buttons
+
+Variants:
+- Primary: brand color, untuk CTA utama (Daftar, Bayar, Publish, Simpan)
+- Secondary: outline/muted, untuk action sekunder (Kembali, Batal, Simpan Draft)
+- Danger: merah, untuk destructive action (Hapus, Batalkan)
+- Ghost/Text: tanpa background, untuk navigasi atau action minor
+- Icon Button: hanya ikon (bell, search, edit, delete)
+
+States per variant: Default, Hover, Active/Pressed, Focus, Disabled, Loading (spinner)
+
+Sizes: Small (32px height), Medium (40px height), Large (48px height)
+
+5.2 Input Fields
+
+Types yang dibutuhkan:
+- Text Input (dengan label, placeholder, helper text, error text, character counter)
+- Number Input (dengan +/- stepper buttons)
+- Textarea (dengan character counter, format: "123/2000")
+- Date Picker
+- Time Picker
+- Dropdown / Select (single select)
+- Multi-select (tag-based selection)
+- File Upload (drag & drop + browse, preview image, format/size validation error)
+- Toggle Switch (on/off, dengan label)
+- Radio Group (card-style untuk payment method selection)
+- Checkbox
+- OTP Input (6 digit, auto-focus, auto-advance per digit)
+- Search Input (dengan icon search, debounced)
+
+States per type: Default, Focus, Filled, Error, Disabled, Read-only
+
+5.3 Cards
+
+- Event Card (poster thumbnail 4:5 ratio, event name, date, location, price display, slot indicator, CTA button)
+- Instructor Card (circle avatar, name, specialization tags, bio)
+- Add-on Card (name, description, price, quantity selector)
+- Summary/Metric Card (icon + label + value + trend — untuk admin dashboard)
+- Notification Card (type icon + message + timestamp + unread indicator)
+- Price Breakdown Card (line items with labels + amounts + total)
+
+5.4 Status Badges
+
+Setiap badge harus punya warna semantik yang konsisten:
+
+Payment Status:
+- Pending Payment → Warning color
+- Paid → Success color
+- Expired → Danger color
+
+Registration Status:
+- Pending → Warning color
+- Confirmed → Success color
+- Expired → Danger color
+
+Attendance Status:
+- Not Checked → Neutral color
+- Present → Success color
+
+Event Status:
+- Draft → Neutral color
+- Published → Success color
+- Completed → Info color
+
+Instructor Status:
+- Active → Success color
+- Inactive → Neutral color
+
+Promo Code Status:
+- Active → Success color
+- Inactive → Neutral color
+- Expired → Danger color
+
+Add-on Status:
+- Active → Success color
+- Inactive → Neutral color
+
+Notification Status:
+- Sent → Success
+- Failed → Danger
+- Pending → Warning
+
+5.5 Navigation Components
+
+- Sidebar Navigation (admin: with icons, labels, active state, collapsible)
+- Top Navbar (participant: logo, minimal navigation)
+- Tabs (horizontal, for event detail admin: Overview, Participants, Payments, Attendance, Feedback)
+- Stepper/Progress Indicator (numbered steps, current step highlighted — untuk registration flow)
+- Breadcrumb (admin, optional)
+- Pagination (page numbers, prev/next)
+
+5.6 Feedback & Overlay Components
+
+- Modal/Dialog (title, description, 2 buttons: Cancel + Confirm. Untuk: Publish, Complete, Delete)
+- Toast/Snackbar (success/error/info/warning variants, auto-dismiss 4 detik, bottom-center mobile, top-right desktop)
+- Bottom Sheet (mobile: pilihan share method, filter options)
+- Tooltip (penjelasan singkat saat hover pada disabled elements atau info icons)
+- Inline Alert (success/warning/danger/info, dengan icon, untuk form-level feedback)
+
+5.7 Data Display Components
+
+- Data Table (sortable columns, row actions, pagination, search — untuk admin)
+- Empty State (illustration/icon + message + optional CTA button)
+- Avatar (circle, with image or fallback initial letter)
+- Star Rating (input mode: 5 clickable stars. Display mode: filled stars)
+- Progress Bar / Capacity Bar (horizontal bar showing used/total, color change saat hampir penuh)
+- Countdown Timer (MM:SS format, warna berubah saat < 10 menit)
+- QR Code Display (centered, dengan save/download option)
+- Tag/Badge (small label: activity type, specialization, early bird, discount)
+- Divider (horizontal line separator)
+- Skeleton Loader (loading placeholders for cards, tables, text blocks)
+
+5.8 Form-Specific Components
+
+- Registration Stepper (5 steps: Data Peserta → Jumlah & Nama → Add-on → Discount → Review)
+- Quantity Stepper (- / [number] / + buttons, min/max limits)
+- Promo Code Input (text input + "Terapkan" button + success/error feedback inline)
+- Price Display Component (normal price, early bird strikethrough, bundle teaser)
+
+
+========================================================================
+6. PAGE INVENTORY — PARTICIPANT SIDE
+========================================================================
+
+Design semua halaman participant berikut:
+
+6.1 Event Listing Page (Home)
+
+Layout: Single column, scrollable card list, mobile-first
+- Header: logo/brand
+- Event cards list (sorted by date, upcoming first)
+- Optional: filter by activity type
+- Empty state jika tidak ada event
+
+6.2 Event Detail Page
+
+Layout: Single column, scroll, poster full-width di atas
+Content sections:
+- Poster (full-width, 4:5 ratio)
+- Event info (name, type tag, date, time, location, description)
+- Instructor card (avatar, name, specializations, bio)
+- Pricing section (normal/early bird + bundle info)
+- Add-on section (jika ada)
+- Capacity indicator (progress bar + text "X dari Y slot tersisa")
+- Sticky CTA bottom bar: "Daftar Sekarang"
+- States: Published (normal), Full ("Event Penuh"), Completed ("Event Telah Selesai")
+
+6.3 Authentication Page
+
+Layout: Centered card, single column
+Options:
+- "Login with Google" (button dengan Google icon)
+- "Login with Email" (button)
+- "Login with WhatsApp" (button)
+- Divider: "atau"
+- "Lanjutkan Tanpa Login" (secondary/text link)
+
+Sub-pages:
+- OTP Input form (6-digit, countdown timer "Kirim ulang OTP dalam 00:XX")
+- Complete Profile form (name + phone/email — untuk new users)
+- Auto Create form (name + phone + email — untuk continue without login)
+- Error states: OTP expired, OTP salah, rate limited
+- Inline alert: "Nomor telepon ini sudah terdaftar" (warning)
+
+6.4 Registration Flow (5-Step Multi-Step Form)
+
+Setiap step memiliki stepper/progress indicator di atas:
+
+Step 1 — Participant Data:
+- Pre-filled form (name, email, phone)
+- Inline validation
+
+Step 2 — Jumlah Peserta & Nama:
+- Quantity stepper (min 1)
+- Dynamic name fields untuk peserta tambahan
+- Bundle discount preview text
+
+Step 3 — Select Add-on:
+- Add-on cards with quantity selectors
+- Running subtotal
+
+Step 4 — Apply Discount:
+- Auto-applied badges (Early Bird, Bundle)
+- Promo code input + apply button
+- Success/error feedback
+
+Step 5 — Order Review:
+- Event info summary (compact)
+- Participant list (numbered)
+- Price breakdown (per pax, bundle discount, add-ons, promo code, total)
+- "Bayar Sekarang" CTA
+
+6.5 Payment Page
+
+- Payment method selection (QRIS / Bank Transfer — card-style radio)
+- QRIS: QR code image + total + countdown + instruksi
+- Bank Transfer: bank name + VA number (copy button) + total + countdown + instruksi
+- States: Waiting, Processing, Success, Expired, Failed
+
+6.6 Confirmation Page
+
+Layout: Centered, celebratory tone
+- Success icon (checkmark)
+- "Registrasi Berhasil!" heading
+- Event info, participant names, add-ons, total payment
+- Status badge: "Confirmed"
+- WhatsApp group link button (jika ada)
+- Secondary CTAs: "Lihat Event Lain", "Lihat Profil"
+
+6.7 Profile Page
+
+Layout: Single column
+- Profile header (avatar, name, email, phone, join date)
+- Tab: "Event History"
+- Event history list (event name, date, attendance status badge)
+- Empty state
+
+6.8 Feedback Form Page
+
+Layout: Centered card
+- Event name (heading)
+- Star rating input (5 stars)
+- Comment textarea
+- Suggestion textarea
+- "Kirim Feedback" button
+- States: Normal, Success, Already Submitted, Not Attended, Invalid Link
+
+6.9 Error Pages
+
+- 404 Not Found
+- Event Penuh (event info + "Event Penuh" banner)
+- Event Selesai (event info + "Event Telah Selesai" banner)
+- Session Expired
+
+
+========================================================================
+7. PAGE INVENTORY — ADMIN DASHBOARD
+========================================================================
+
+Design semua halaman admin berikut:
+
+7.1 Admin Layout Structure
+
+- Sidebar Navigation (left): Dashboard, Event Management, Event Templates, Instructors, Specializations, Promo Codes, Analytics
+- Header (top): Search bar, Notification bell (with unread badge count), Admin profile dropdown
+- Main Content Area (responsive grid)
+
+7.2 Dashboard Page (Analytics Overview)
+
+- Summary cards row (6 cards): Upcoming Events, Completed Events, Total Participants, Total Revenue, Avg Attendance Rate, Avg Feedback Rating
+- Charts: Registration trend (line), Revenue trend (bar)
+- Recent activity feed (5 latest notifications)
+
+7.3 Event Management
+
+7.3.1 Event List:
+- Table: Event Name, Date, Instructor, Capacity (X/Y), Status badge, Actions
+- Filters: Status (All/Draft/Published/Completed), Date Range
+- Actions: View, Edit, Duplicate, Publish, Complete, Delete, Share (copy URL, download QR)
+- "+ Create Event" button
+
+7.3.2 Create/Edit Event:
+- Tab-based form:
+  - Tab 1: Basic Info (name, activity type, description, poster upload)
+  - Tab 2: Schedule & Location (date, start/end time, location)
+  - Tab 3: Instructor & Capacity (instructor dropdown, capacity number)
+  - Tab 4: Pricing (normal price, early bird toggle, bundle discount rows)
+  - Tab 5: Add-on (repeatable rows: name, description, price, quantity, max purchase, status)
+- Actions: "Simpan sebagai Draft", "Publish Event"
+
+7.3.3 Event Detail (Admin View):
+- Header: event name, date, status badge, action buttons
+- Tabs: Overview, Participants, Payments, Attendance, Feedback
+
+7.4 Event Template Management
+
+- Template list (table/cards): name, activity type, instructor, created date
+- Create/edit form: name, activity type, description, instructor
+- Note: "Template tidak menyimpan add-on dan pricing"
+
+7.5 Instructor Management
+
+- Instructor list (table/cards): avatar, name, specialization tags, status badge
+- Filter: Status (All/Active/Inactive)
+- Create/edit form: name, photo upload, bio, specializations (multi-select), contact, status toggle
+
+7.6 Specialization Management
+
+- Simple table: name, instructor count, actions
+- Create/edit: name (text input)
+
+7.7 Participant Management (via Event Detail → Participants tab)
+
+- Search bar (name, email, phone)
+- Filters: Payment Status, Registration Status, Attendance Status
+- Table: Participant Name, Booking Owner, Email, Phone, Payment Status, Registration Status, Attendance Status, Add-ons
+- Actions: Export (Excel/CSV), Check-in toggle
+- Pagination: 20 per page
+
+7.8 Payment Management (via Event Detail → Payments tab)
+
+- Table: Booking Owner, Total Pax, Total Payment, Payment Method, Payment Status, Deadline/Paid At
+- Action: "Check Payment Status" per row (for Pending)
+
+7.9 Attendance Management (via Event Detail → Attendance tab)
+
+- Search bar (by name)
+- List: Participant Name, Attendance toggle (Not Checked ↔ Present), Checked At timestamp
+- Summary: "Present: X / Y peserta (Z%)"
+
+7.10 Discount/Promo Code Management
+
+- Table: Code, Discount Type, Value, Quota (used/total), Expiry Date, Status badge
+- Filter: Status (All/Active/Inactive/Expired)
+- Create/edit form: code (auto-uppercase), discount type dropdown, value, quota, expiry date, status toggle
+
+7.11 Notification Dropdown
+
+- Bell icon in header with unread badge count
+- Dropdown panel (scrollable, max ~400px height)
+- Notification items: type icon, message text, timestamp, unread indicator
+- "Tandai semua sebagai dibaca" footer link
+
+7.12 Feedback Management (via Event Detail → Feedback tab)
+
+- Summary: average rating (stars + number), total feedback count
+- Feedback list: participant name, rating (stars), comment, suggestion, submitted at
+- Sort: newest first
+
+7.13 Analytics Page
+
+Sections with charts:
+- Event Analytics: total events, events by status (pie/donut), events by activity type (bar)
+- Registration Analytics: total participants, registration trend (line), top 5 events (bar)
+- Revenue Analytics: total revenue, revenue per event (bar), outstanding payment
+- Attendance Analytics: avg attendance rate, attendance rate per event (bar)
+- Feedback Analytics: avg rating, rating distribution (bar 1-5 star), rating per event (bar)
+
+
+========================================================================
+8. UI PATTERNS & INTERACTIONS
+========================================================================
+
+8.1 Price Display Pattern
+
+Tiga skenario yang harus di-design:
+
+A) Normal Price Only:
+   "Rp 150.000"
+
+B) Early Bird Active:
+   "Rp 150.000" (dicoret, smaller)
+   "Rp 120.000" (prominent)
+   Badge: "Early Bird" (info color)
+
+C) With Bundle Teaser:
+   Price + teks kecil: "Daftar 2 orang diskon 10%"
+
+8.2 Slot/Capacity Indicator Pattern
+
+Tiga state:
+- Normal: "X slot tersisa" (neutral text)
+- Almost Full (sisa ≤ 10%): "Sisa X slot!" (warning color) + badge "Hampir Penuh"
+- Full: "Event Penuh" (danger color, card slightly dimmed)
+
+8.3 Registration Stepper Pattern
+
+5 steps, linear progression:
+- Completed steps: checkmark + muted color
+- Current step: highlighted/active
+- Upcoming steps: numbered + muted
+
+8.4 Payment Countdown Pattern
+
+- Timer format: MM:SS
+- Normal: neutral display
+- < 10 minutes: warning color
+- Expired: danger color + "Waktu pembayaran habis" message
+
+8.5 Loading Patterns
+
+- Full page: centered spinner + "Memuat..." text
+- Skeleton: gray placeholder shapes (cards, table rows, text)
+- Inline: spinner inside button during processing ("Memproses...")
+- Lazy: poster images load saat masuk viewport
+
+8.6 Empty State Pattern
+
+Setiap konteks memiliki empty state berbeda:
+- Event Listing: "Belum ada event tersedia saat ini."
+- Participant List: "Belum ada peserta terdaftar untuk event ini."
+- Payment List: "Belum ada transaksi pembayaran untuk event ini."
+- Attendance: "Belum ada peserta yang dikonfirmasi untuk event ini."
+- Feedback: "Belum ada feedback untuk event ini."
+- Event History: "Anda belum mengikuti event apapun."
+- Notification: "Tidak ada notifikasi baru."
+- Template List: "Belum ada template. Buat template pertama Anda."
+- Promo Code List: "Belum ada promo code."
+
+8.7 Toast/Notification Pattern
+
+- Success: "Event berhasil dipublikasikan", "Data tersimpan", "Pembayaran berhasil"
+- Error: "Terjadi kesalahan, silakan coba lagi", "Gagal menyimpan"
+- Warning: "Koneksi internet terputus"
+- Position: bottom-center (mobile), top-right (desktop)
+- Auto-dismiss: 4 detik
+
+8.8 Confirmation Modal Pattern
+
+Untuk destructive/important actions:
+- Publish Event: "Publish event ini? Event akan terlihat oleh publik."
+- Complete Event: "Tandai event selesai? Status tidak dapat diubah kembali."
+- Delete Event: "Hapus event ini? Data yang terhapus tidak dapat dikembalikan."
+- Delete Instructor: disabled jika terhubung event Published, tooltip jelaskan
+- Layout: title + description + Cancel button (secondary) + Confirm button (primary/danger)
+
+
+========================================================================
+9. TECHNICAL IMPLEMENTATION CONSTRAINTS
+========================================================================
+
+Design yang dihasilkan akan diimplementasikan menggunakan tech stack berikut:
+
+9.1 Frontend Framework
+- Next.js 15+ (React 19, App Router)
+- TypeScript strict mode
+
+9.2 Styling
+- Tailwind CSS 3+
+- Design tokens diimplementasikan sebagai Tailwind config (colors, spacing, fontSize, borderRadius)
+- Utility-first approach
+
+9.3 Component Library
+- shadcn/ui (copy-paste component model, built on Radix UI)
+- Component dapat dikustomisasi sepenuhnya via Tailwind
+- Base components: Button, Input, Card, Dialog, Select, Table, Tabs, Sheet, Separator, Badge, Toast
+
+9.4 Icon Library
+- Lucide React (konsisten dengan shadcn/ui)
+
+9.5 Charts
+- Recharts (untuk admin analytics: line chart, bar chart, donut chart)
+
+9.6 Additional
+- date-fns: date formatting (format Indonesia)
+- sonner: toast notifications
+- next-themes: dark mode support (optional MVP — tapi design tokens harus support)
+
+9.7 Design Output Requirements
+
+Stitch AI output harus compatible dan convertible ke:
+- Tailwind CSS classes dan config
+- shadcn/ui component patterns
+- CSS custom properties / design tokens
+- Responsive classes (mobile-first breakpoints)
+
+
+========================================================================
+10. CONTENT & LANGUAGE
+========================================================================
+
+10.1 Primary Language
+
+Bahasa Indonesia untuk semua user-facing content:
+- UI labels, buttons, messages
+- Error messages
+- Empty states
+- Toast notifications
+- Form placeholders dan helper text
+
+10.2 Key UI Text Examples
+
+Buttons:
+- "Daftar Sekarang" (register CTA)
+- "Bayar Sekarang" (pay CTA)
+- "Lanjutkan" (next step)
+- "Kembali" (previous step)
+- "Simpan" (save)
+- "Simpan sebagai Draft" (save as draft)
+- "Publish Event" (publish)
+- "Terapkan" (apply promo code)
+- "Kirim Feedback" (submit feedback)
+- "Kirim OTP" (send OTP)
+- "Lanjutkan Tanpa Login" (continue without login)
+
+Status Labels:
+- "Draft", "Published", "Completed" (event status — in English)
+- "Pending Payment", "Paid", "Expired" (payment status — in English)
+- "Pending", "Confirmed", "Expired" (registration status — in English)
+- "Not Checked", "Present" (attendance status — in English)
+- "Early Bird" (pricing badge — in English)
+- "Hampir Penuh!" (almost full — in Indonesian)
+- "Event Penuh" (full — in Indonesian)
+
+Date Format:
+- Full: "Sabtu, 15 Maret 2027"
+- Short: "15 Mar 2027"
+- Time: "08:00 - 10:00 WIB"
+
+Currency Format:
+- "Rp 150.000" (titik sebagai pemisah ribuan, tanpa desimal)
+
+
+========================================================================
+11. DESIGN DELIVERABLES EXPECTED
+========================================================================
+
+Dari Stitch AI, output yang diharapkan:
+
+11.1 Design System / Style Guide
+- Complete color palette (dengan hex values)
+- Typography scale (font family, sizes, weights, line-heights)
+- Spacing system
+- Border radius tokens
+- Shadow tokens
+- Icon style guide
+
+11.2 Component Library
+- Semua components di Section 5 dengan all variants dan states
+- Component anatomy dan usage guidelines
+
+11.3 Page Designs
+- Semua halaman participant (Section 6) — mobile-first, responsive
+- Semua halaman admin (Section 7) — desktop-first, responsive
+- Include: normal state, loading state, empty state, error state per page
+
+11.4 Interaction Patterns
+- All patterns di Section 8
+- Hover, focus, active, disabled states
+- Transition dan animation specifications
+
+11.5 Design Tokens Export
+- Format yang bisa dikonversi ke Tailwind CSS config
+- CSS custom properties format
+- Color, typography, spacing, border-radius, shadow values
+
+
+========================================================================
+12. MOOD & VISUAL DIRECTION
+========================================================================
+
+12.1 Mood Keywords
+
+- Calm, Serene, Balanced
+- Clean, Minimal, Spacious
+- Natural, Organic, Earthy
+- Modern, Contemporary, Fresh
+- Warm, Welcoming, Approachable
+
+12.2 Color Direction
+
+- Lean towards earthy/nature tones (sage green, warm neutral, soft earth)
+- Avoid aggressive/loud colors (neon, bright red as primary)
+- White/light background dominant
+- Subtle color accents, not overwhelming
+- Semantic colors standard (green=success, red=danger, yellow=warning, blue=info)
+
+12.3 Typography Direction
+
+- Clean sans-serif (Inter, Plus Jakarta Sans, atau rekomendasi Stitch AI)
+- Good readability di mobile
+- Clear hierarchy antara headings dan body text
+- Support Indonesian characters
+
+12.4 Visual Style
+
+- Generous whitespace
+- Soft shadows (not harsh drop shadows)
+- Rounded corners (medium — 8px default)
+- Subtle dividers (thin lines atau spacing, bukan thick borders)
+- Photography: poster images full-color, tidak di-filter
+- Icons: outline style (Lucide), consistent stroke width
+
+12.5 What to AVOID
+
+- Dark/heavy UI themes (optional for dark mode, tapi primary experience harus light)
+- Overly decorative elements (patterns, textures, gradients as decoration)
+- Cramped layouts (always prioritize breathing room)
+- Inconsistent icon styles (mixing filled and outline)
+- Small touch targets on mobile (minimum 44x44px)
+- Low contrast text on colored backgrounds
+
+
+========================================================================
+13. REFERENCE DOCUMENTS
+========================================================================
+
+Design brief ini diextract dari dokumen berikut:
+
+- PRD v1.5 — Product scope, user roles, features
+- UFD v1.5 — User flows and navigation paths
+- SRD v1.5 — System requirements, browser support, viewport requirements
+- ERD v1.6 — Database schema (17 tables), data relationships
+- UIUX Spec v1.5 — UI/UX specification, design tokens, component specs, page layouts
+- API Spec v1.6 — 79 REST API endpoints, request/response formats
+- TAD v1.6 — Technical architecture, frontend/backend stack, component library
+- DTBD v1.6 — Development task breakdown, 68 tasks across 12 phases
+
+Semua data dan spesifikasi dalam brief ini konsisten dengan dokumen-dokumen di atas.

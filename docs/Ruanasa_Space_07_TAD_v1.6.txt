@@ -1,0 +1,2664 @@
+TECHNICAL ARCHITECTURE DOCUMENT (TAD)
+
+Ruanasa Space
+
+Version: 1.6 (Updated)
+Platform: Web-Based Responsive Application
+Architecture Style: Modular Monolithic
+Architecture Goal: MVP dengan penggunaan teknologi open-source dan free tier semaksimal mungkin
+
+------------------------------------------------------------------------
+
+1. DOCUMENT OVERVIEW
+
+1.1 Objective
+
+Technical Architecture Document mendefinisikan rancangan teknis Ruanasa Space sebagai acuan implementasi sebelum development dimulai.
+
+Dokumen ini diselaraskan dengan:
+- PRD v1.5 (Product Requirement Document)
+- UFD v1.5 (User Flow Document)
+- SRD v1.5 (System Requirement Document)
+- ERD v1.6 (Database Schema Document)
+- UIUX Spec v1.5 (UI/UX Specification Document)
+- API Spec v1.6 (API Specification Document)
+
+Dokumen mencakup:
+- System architecture
+- Technology stack
+- Frontend architecture
+- Backend architecture
+- Database architecture
+- API architecture
+- Authentication architecture
+- Registration & pricing architecture
+- Payment architecture
+- Notification architecture
+- Background jobs
+- File & media architecture
+- Security architecture
+- Error handling architecture
+- Caching strategy
+- Testing architecture
+- Deployment architecture
+- Monitoring and logging
+- Environment management
+- Development guidelines
+- MVP development priority
+
+
+1.2 Architecture Principles
+
+Ruanasa Space dibangun dengan prinsip:
+
+1. Simple
+Arsitektur tidak boleh lebih kompleks dari kebutuhan MVP. Tidak ada over-engineering.
+
+2. Low Cost
+Teknologi yang digunakan harus memiliki opsi open-source, free tier, atau free development environment.
+
+3. Scalable
+Struktur aplikasi harus memungkinkan migrasi ke infrastructure berbayar dan scaling horizontal ketika penggunaan meningkat.
+
+4. Maintainable
+Code harus modular, terdokumentasi, dan mudah dikembangkan. Separation of concerns antar layer harus dijaga.
+
+5. Secure
+Authentication, payment, participant data, dan admin access harus memiliki protection yang memadai sesuai SRD v1.5.
+
+6. API First
+Frontend dan backend berkomunikasi melalui REST API yang terstruktur sesuai API Spec v1.6. Tidak ada direct database access dari frontend.
+
+
+------------------------------------------------------------------------
+
+2. SYSTEM OVERVIEW
+
+Ruanasa Space merupakan platform event management berbasis web untuk mengelola aktivitas wellness community, dengan fokus awal pada Yoga Class.
+
+2.1 Participant Experience
+
+- Melihat event yang tersedia (published)
+- Login tanpa password (Google OAuth, Email OTP, WhatsApp OTP)
+- Continue without login (auto-create account, phone sebagai primary identifier)
+- Registrasi event (multi-pax, add-on, discount)
+- Pembayaran via QRIS atau bank transfer
+- Mendapatkan konfirmasi WhatsApp
+- Mendapatkan event reminder H-1 via WhatsApp
+- Mengisi feedback setelah event (via unique token link)
+- Melihat profil, event history, dan attendance history
+
+2.2 Admin Dashboard
+
+- Login dengan email + password
+- Mengelola event (CRUD, template, duplicate, publish, complete)
+- Mengelola instructor dan specialization
+- Mengelola pricing (normal, early bird, bundle discount)
+- Mengelola add-on per event
+- Mengelola promo code
+- Mengelola participant list per event
+- Mengelola payment dan manual check
+- Mengelola attendance (check-in)
+- Melihat feedback per event
+- Melihat dashboard analytics
+- Export data peserta ke Excel/CSV
+- Menerima in-app notification (new registration, payment success, event almost full)
+
+2.3 Key Design Decisions
+
+- Phone number sebagai primary identifier user (UNIQUE), email sebagai secondary (UNIQUE).
+- Tidak ada guest tanpa akun. Semua peserta memiliki record di tabel users.
+- User dan Participant adalah entitas berbeda: User = buyer/account, Participant = event attendee.
+- Pricing dikelola terpisah dari event (event_prices, event_pricing_rules, discount_codes).
+- Participant list bersifat event-based, bukan global CRM.
+- Tidak ada cancellation/refund pada MVP.
+- Tidak ada auto-retry notifikasi pada MVP.
+
+
+------------------------------------------------------------------------
+
+3. HIGH LEVEL SYSTEM ARCHITECTURE
+
+
+                        PARTICIPANT (Mobile Browser)
+                                    |
+                                    v
+                        Mobile Responsive Web
+                                    |
+                                    v
+                        +---------------------+
+                        |      FRONTEND       |
+                        |      Next.js        |
+                        |  (Vercel Hosting)   |
+                        +---------------------+
+                                    |
+                              REST API (/api/v1)
+                                    |
+                                    v
+                        +---------------------+
+                        |      BACKEND        |
+                        |      NestJS         |
+                        |  (Render Hosting)   |
+                        +----------+----------+
+                                   |
+                    +--------------+--------------+
+                    |              |              |
+                    v              v              v
+              PostgreSQL    Object Storage   External Services
+              (Supabase)    (Supabase       +-- Payment Gateway (Midtrans)
+                             Storage)       +-- WhatsApp Provider
+                                            +-- Email Provider (Resend)
+                                            +-- Google OAuth
+
+
+            ADMIN (Desktop Browser)
+                    |
+                    v
+            Desktop Responsive Web
+                    |
+                    v
+            Next.js Admin Interface
+                    |
+                    v
+            REST API (/api/v1)
+                    |
+                    v
+            NestJS Backend (same instance)
+
+
+------------------------------------------------------------------------
+
+4. TECHNOLOGY STACK
+
+Semua komponen utama harus memiliki opsi gratis atau open-source untuk tahap MVP.
+
+
+4.1 Frontend Framework
+
+Technology: Next.js 15+ (App Router)
+Language: TypeScript
+License: Open Source (MIT)
+
+Purpose:
+- Participant web (mobile-first responsive)
+- Admin dashboard (desktop-first)
+- Public event pages
+- Server-side rendering untuk halaman publik (SEO: event listing, event detail)
+- Client-side rendering untuk admin dashboard dan authenticated pages
+
+Rendering Strategy:
+- SSR (Server-Side Rendering): public event listing, event detail page — untuk SEO dan performance.
+- CSR (Client-Side Rendering): admin dashboard, registration wizard, payment page, profile — tidak perlu SEO.
+- Static generation tidak digunakan pada MVP karena konten event bersifat dinamis.
+
+Reason:
+- Open source
+- App Router mendukung React Server Components
+- Ecosystem besar
+- Mudah dikembangkan dengan AI coding assistant
+
+
+4.2 Styling
+
+Technology: Tailwind CSS 3+
+License: Open Source (MIT)
+
+Purpose:
+- Responsive layout (mobile-first participant, desktop-first admin)
+- Design token implementation (colors, spacing, typography sesuai UIUX Spec v1.5)
+- Utility-first styling
+
+Configuration:
+- Breakpoints: sm (640px), md (768px), lg (1024px), xl (1280px)
+- Custom colors sesuai design tokens (primary, secondary, semantic colors)
+- 4px base grid spacing system
+
+
+4.3 UI Component Library
+
+Technology: shadcn/ui
+License: Open Source
+
+Components yang digunakan:
+- Button (primary, secondary, danger, text variants)
+- Input, Textarea (with character counter)
+- Select, Multi-select
+- Dialog/Modal (confirmation: publish, complete, delete)
+- Dropdown Menu (notification dropdown, admin profile)
+- Table (sortable, with pagination)
+- Card (event card, summary card, add-on card)
+- Tabs (event detail admin: overview, participants, payments, attendance, feedback)
+- Toast/Sonner (success/error feedback, auto-dismiss 4 detik)
+- Badge (status badges sesuai UIUX Spec)
+- Switch/Toggle (attendance check-in, add-on status)
+- Form (with React Hook Form integration)
+- Skeleton (loading states)
+- Avatar (instructor, admin profile)
+- Progress (capacity bar)
+- Separator, Sheet (bottom sheet mobile)
+
+Reason:
+- Gratis, copy-paste component model
+- Component dapat dikustomisasi sesuai design tokens Ruanasa Space
+- Built on Radix UI primitives (accessible)
+
+
+4.4 Client State Management
+
+API State — TanStack Query (React Query) v5:
+- API data fetching dan caching
+- Automatic background refetching
+- Loading, error, success states
+- Optimistic updates (attendance toggle)
+- Cache invalidation setelah mutations
+- Pagination support
+
+Client State — Zustand:
+- authStore: user data, JWT token, login status, role
+- registrationStore: multi-step wizard state (current step, pax count, participant names, selected add-ons, promo code, calculated price)
+- uiStore: sidebar collapsed state, active modal, notification badge count
+
+State Persistence:
+- authStore: token disimpan di httpOnly cookie (set oleh backend) atau secure localStorage
+- registrationStore: ephemeral (tidak di-persist, reset saat page refresh)
+- uiStore: ephemeral
+
+
+4.5 Form and Validation
+
+Technology: React Hook Form v7+
+Validation: Zod
+
+Purpose:
+- Registration form (5-step wizard)
+- Event form (admin, tabbed: basic info, schedule, instructor, pricing, add-on)
+- Instructor form
+- Template form
+- Specialization form
+- Promo code form
+- Feedback form
+- Profile edit form
+- Auto-create account form
+
+Validation Rules:
+- Mengikuti data validation rules di SRD v1.5 Section 23
+- Inline validation (real-time) untuk participant forms
+- On-submit validation untuk admin forms
+- Zod schema shared between frontend dan backend (jika menggunakan monorepo)
+
+
+4.6 Additional Frontend Libraries
+
+- date-fns: date/time formatting dan manipulation (format Indonesia: "Sabtu, 15 Maret 2027")
+- qrcode.react: QR code generation untuk event sharing
+- lucide-react: icon library (konsisten dengan shadcn/ui)
+- recharts: charts untuk admin analytics (line chart, bar chart, donut chart)
+- next-themes: dark mode support (optional MVP)
+- sonner: toast notifications
+
+
+4.7 Backend Framework
+
+Technology: NestJS 11+
+Runtime: Node.js 22 LTS
+Language: TypeScript
+License: Open Source (MIT)
+
+Purpose:
+- REST API server
+- Business logic processing
+- Authentication & authorization
+- Registration processing
+- Pricing calculation
+- Payment processing
+- Notification orchestration
+- Background job execution
+
+Reason:
+- Open source
+- Modular architecture (module/controller/service/repository pattern)
+- TypeScript full-stack consistency
+- Decorator-based (guards, interceptors, pipes, filters)
+- Built-in support for validation, scheduling, and middleware
+
+
+4.8 Database
+
+Technology: PostgreSQL 15+
+Hosting: Supabase Free Tier (PostgreSQL)
+
+Purpose:
+- Semua 17 tabel sesuai ERD v1.6
+- UUID primary keys
+- Relational integrity via foreign keys
+- Transaction support untuk proses kritis
+- Soft delete support (deleted_at)
+
+Reason:
+- Relational database cocok dengan ERD Ruanasa Space
+- Open source, mature
+- Mendukung transaction, ACID compliance, dan database-level locking
+- Supabase menyediakan connection pooling via PgBouncer
+
+
+4.9 ORM
+
+Technology: Prisma ORM 6+
+License: Open Source
+
+Purpose:
+- Database schema definition (schema.prisma)
+- Type-safe database access
+- Query builder
+- Migration management (prisma migrate)
+- Seeding (prisma db seed)
+
+Configuration:
+- Connection pooling: menggunakan Supabase PgBouncer connection string
+- Prisma Client: generated types sesuai ERD v1.6
+- Migration: version-controlled, sequential
+
+
+4.10 Authentication
+
+Architecture: Custom JWT Authentication (BUKAN Supabase Auth)
+
+Alasan memilih Custom JWT:
+- Auto-create account flow dan phone-as-primary-identifier memerlukan kontrol penuh atas user creation logic.
+- Account linking (auto_created → Google/OTP) memerlukan custom auth_provider management.
+- Semua dokumen (API Spec v1.6, SRD v1.5, ERD v1.6) sudah mendefinisikan custom JWT flow.
+
+JWT Specification:
+- Algorithm: HS256 (HMAC-SHA256)
+- Secret: JWT_SECRET dari environment variable (minimum 256-bit)
+- Expiry: 7 hari (sliding window — diperpanjang setiap request authenticated)
+- Payload: { sub: user_id, role: "admin" | "participant", iat, exp }
+- Token delivery: httpOnly cookie (primary) + Authorization Bearer header (fallback), prioritas cookie dahulu
+- Token blacklisting on logout: simpan invalidated token di in-memory store sampai expiry
+
+Participant Authentication Methods:
+- Google OAuth 2.0 (2-step: login → complete with phone if new user)
+- Email OTP (request → verify → complete with name/phone if new user)
+- WhatsApp OTP (request → verify → complete with name/email if new user)
+- Auto Account Creation (check phone → check email → create or reject)
+
+Admin Authentication:
+- Email + Password
+- Password hashing: bcrypt (12 rounds)
+
+OTP Specification (sesuai SRD v1.5):
+- Format: 6 digit angka
+- Expiry: 5 menit
+- Max attempts: 5 per OTP session
+- Rate limit: 3 request per 15 menit per identifier
+- Storage: OTP di-hash (SHA-256) sebelum disimpan di database/cache
+- Delivery: Email via SMTP (Resend), WhatsApp via WhatsApp provider
+
+Account Linking:
+- User yang dibuat via auto_created, kemudian login via Google/Email OTP/WhatsApp OTP dengan phone/email yang sama, akan dikenali sebagai existing user.
+- auth_provider diupdate ke metode login terbaru.
+
+Libraries:
+- @nestjs/jwt: JWT token generation dan verification
+- @nestjs/passport: authentication guard
+- passport-google-oauth20: Google OAuth strategy
+- bcryptjs: password hashing untuk admin
+- otplib atau custom: OTP generation
+
+
+4.11 File Storage
+
+Technology: Supabase Storage
+Alternative: Cloudflare R2 (jika storage meningkat)
+
+Purpose:
+- Event poster images
+- Instructor profile pictures
+- Event documentation images (future)
+
+Configuration:
+- Bucket: public bucket untuk poster dan profile pictures (accessible via CDN URL)
+- Max file size: 5 MB (sesuai SRD v1.5)
+- Allowed formats: JPG, JPEG, PNG, WebP
+- Recommended dimensions: 1080 x 1350 px (rasio 4:5, optimal mobile)
+- URL pattern: https://{supabase-project}.supabase.co/storage/v1/object/public/{bucket}/{path}
+
+Database Storage:
+- Hanya menyimpan URL/path di database (poster_url, profile_picture)
+- Tidak menyimpan binary file di PostgreSQL
+
+
+4.12 Frontend Hosting
+
+Technology: Vercel Free Tier
+
+Purpose:
+- Next.js deployment (optimized for Next.js)
+- Preview deployment (per branch/PR)
+- Production deployment
+- Edge CDN untuk static assets
+- Automatic HTTPS
+
+Free Tier Limits:
+- Bandwidth: 100 GB/month
+- Serverless function execution: 100 GB-Hours/month
+- Build: 6000 minutes/month
+
+Custom Domain:
+- ruanasaspace.com (production)
+- staging.ruanasaspace.com (staging, jika diperlukan)
+
+
+4.13 Backend Hosting
+
+Technology: Render Free Tier (atau equivalent)
+
+Purpose:
+- NestJS application deployment
+- Background job execution (same process pada MVP)
+
+Free Tier Characteristics:
+- Cold start: ~30-60 detik setelah 15 menit inactivity. Mitigasi: health check endpoint untuk keep-alive via external cron (UptimeRobot, cron-job.org).
+- RAM: 512 MB
+- Egress: 100 GB/month
+
+Scaling Path:
+- MVP: Render Free Tier dengan keep-alive
+- Growth: Render Starter ($7/month, no cold start)
+- Scale: Dedicated instance atau container orchestration
+
+
+4.14 Database Hosting
+
+Technology: Supabase Free Tier (PostgreSQL)
+Alternative: Neon Free Tier
+
+Free Tier Limits (Supabase):
+- Database size: 500 MB
+- Bandwidth: 5 GB/month
+- Connection pooling: PgBouncer included
+- Auto-pause after 7 days inactivity (dapat di-resume)
+
+Connection Configuration:
+- Connection string: menggunakan PgBouncer pooling URL (port 6543)
+- Max connections: sesuai plan (free tier ~60 connections via pooler)
+- Prisma: datasource url menggunakan connection pooling URL
+
+
+4.15 Payment Gateway
+
+Technology: Midtrans
+Development: Sandbox environment
+
+Payment Methods:
+- QRIS (Quick Response Code Indonesian Standard)
+- Bank Transfer (Virtual Account)
+
+Integration:
+- Server-side: Midtrans Core API (Node.js SDK)
+- Webhook callback URL: POST /api/v1/payments/webhook
+- Signature verification: HMAC-SHA512 (Midtrans server key)
+- Idempotency: order_id = {registration_id}-{unix_ts}, disimpan di payments.transaction_id; custom_expiry Midtrans = sisa waktu sampai payment_deadline
+
+Environment Variables:
+- MIDTRANS_SERVER_KEY (sandbox / production)
+- MIDTRANS_CLIENT_KEY (sandbox / production)
+- MIDTRANS_IS_PRODUCTION (boolean)
+- MIDTRANS_WEBHOOK_URL
+
+Pricing:
+- Sandbox: gratis untuk development dan testing
+- Production: transaction-based pricing (~0.7% QRIS, Rp4.000 bank transfer)
+
+
+4.16 WhatsApp Integration
+
+MVP Provider Options:
+- Fonnte (free trial, biaya rendah)
+- Wablas (API-based)
+- WhatsApp Cloud API (official, memerlukan Meta Business account setup)
+
+Purpose:
+- Registration confirmation (trigger: payment success)
+- Event reminder H-1 (trigger: cron daily 08:00 WIB)
+- Post-event notification (trigger: event status → completed)
+
+Architecture:
+- WhatsApp provider diakses melalui abstraction layer (interface/adapter pattern)
+- Provider dapat diganti tanpa mengubah business logic
+- Notification Service → WhatsAppAdapter → Provider API
+
+Environment Variables:
+- WHATSAPP_API_URL
+- WHATSAPP_API_KEY
+- WHATSAPP_SENDER_NUMBER
+
+
+4.17 Email Service
+
+Technology: Resend Free Tier
+Alternative: Brevo Free Tier
+
+Free Tier Limits (Resend):
+- 100 emails/day
+- 3000 emails/month
+
+Purpose:
+- Email OTP delivery
+- Transactional email (optional)
+
+Architecture:
+- Email provider diakses melalui abstraction layer (sama dengan WhatsApp)
+- Notification Service → EmailAdapter → Provider API
+
+Environment Variables:
+- EMAIL_API_KEY
+- EMAIL_FROM_ADDRESS (contoh: noreply@ruanasaspace.com)
+- EMAIL_FROM_NAME (contoh: Ruanasa Space)
+
+
+------------------------------------------------------------------------
+
+5. FRONTEND ARCHITECTURE
+
+5.1 Application Structure (Next.js App Router)
+
+src/
+  app/                              # Next.js App Router
+    (public)/                       # Public pages (no auth required)
+      page.tsx                      # Home / Event Listing
+      events/
+        [id]/
+          page.tsx                  # Event Detail
+    (auth)/                         # Authentication pages
+      login/
+        page.tsx                    # Login options
+      register/
+        page.tsx                    # Auto-create account form
+    (participant)/                  # Authenticated participant pages
+      events/
+        [id]/
+          register/
+            page.tsx                # Registration wizard (5-step)
+      payment/
+        [registrationId]/
+          page.tsx                  # Payment page with countdown
+      confirmation/
+        [registrationId]/
+          page.tsx                  # Confirmation page
+      profile/
+        page.tsx                    # Profile & event history
+    (feedback)/                     # Feedback (token-based, no auth)
+      feedback/
+        [token]/
+          page.tsx                  # Feedback form
+    admin/                          # Admin pages (auth + role guard)
+      page.tsx                      # Dashboard (analytics overview)
+      events/
+        page.tsx                    # Event list
+        new/
+          page.tsx                  # Create event (blank/template/duplicate)
+        [id]/
+          page.tsx                  # Event detail (tabs: overview, participants, payments, attendance, feedback)
+          edit/
+            page.tsx                # Edit event
+      templates/
+        page.tsx                    # Template list
+        new/
+          page.tsx                  # Create template
+        [id]/
+          edit/
+            page.tsx                # Edit template
+      instructors/
+        page.tsx                    # Instructor list
+        new/
+          page.tsx                  # Create instructor
+        [id]/
+          edit/
+            page.tsx                # Edit instructor
+      specializations/
+        page.tsx                    # Specialization list
+      discounts/
+        page.tsx                    # Promo code list
+        new/
+          page.tsx                  # Create promo code
+        [id]/
+          edit/
+            page.tsx                # Edit promo code
+      analytics/
+        page.tsx                    # Detailed analytics
+    layout.tsx                      # Root layout
+    not-found.tsx                   # 404 page
+    error.tsx                       # Error boundary
+
+  components/
+    ui/                             # shadcn/ui base components
+    shared/                         # Shared custom components
+      EventCard.tsx
+      InstructorCard.tsx
+      StatusBadge.tsx
+      PriceDisplay.tsx
+      CountdownTimer.tsx
+      StarRating.tsx
+      QRCodeDisplay.tsx
+      CapacityBar.tsx
+      EmptyState.tsx
+      SkeletonLoader.tsx
+    layout/                         # Layout components
+      ParticipantLayout.tsx
+      AdminLayout.tsx
+      AdminSidebar.tsx
+      AdminHeader.tsx
+      StickyBottomCTA.tsx
+
+  features/                         # Feature-specific components & logic
+    auth/
+      components/                   # LoginForm, OTPInput, AutoCreateForm, GoogleLoginButton
+      hooks/                        # useAuth, useOTP, useAutoCreate
+    events/
+      components/                   # EventList, EventDetail, EventForm
+      hooks/                        # useEvents, useEventDetail
+    registration/
+      components/                   # RegistrationWizard, StepParticipant, StepPax, StepAddon, StepDiscount, StepReview
+      hooks/                        # useRegistration, useCalculatePrice
+    payment/
+      components/                   # PaymentMethodSelector, QRISPayment, BankTransferPayment
+      hooks/                        # usePayment, usePaymentStatus
+    profile/
+      components/                   # ProfileCard, EventHistory
+      hooks/                        # useProfile, useEventHistory
+    feedback/
+      components/                   # FeedbackForm, SuccessState, AlreadySubmitted
+      hooks/                        # useFeedback
+    admin/
+      events/                       # AdminEventList, AdminEventDetail, AdminEventForm
+      templates/                    # TemplateList, TemplateForm
+      instructors/                  # InstructorList, InstructorForm
+      specializations/              # SpecializationList, SpecializationForm
+      discounts/                    # PromoCodeList, PromoCodeForm
+      participants/                 # ParticipantList, ParticipantExport
+      payments/                     # PaymentList, PaymentManualCheck
+      attendance/                   # AttendanceList, AttendanceToggle
+      feedback/                     # AdminFeedbackList, FeedbackSummary
+      analytics/                    # DashboardCards, AnalyticsCharts
+      notifications/                # NotificationBell, NotificationDropdown
+
+  services/                         # API client functions
+    authService.ts
+    eventService.ts
+    registrationService.ts
+    paymentService.ts
+    userService.ts
+    instructorService.ts
+    templateService.ts
+    addonService.ts
+    discountService.ts
+    participantService.ts
+    attendanceService.ts
+    feedbackService.ts
+    notificationService.ts
+    analyticsService.ts
+    exportService.ts
+    uploadService.ts
+
+  stores/                           # Zustand stores
+    authStore.ts
+    registrationStore.ts
+    uiStore.ts
+
+  hooks/                            # Global hooks
+    useDebounce.ts
+    useCountdown.ts
+    useMediaQuery.ts
+
+  lib/                              # Utility libraries
+    axios.ts                        # Configured axios instance
+    queryClient.ts                  # TanStack Query client config
+    formatters.ts                   # Currency, date, phone formatters
+    validators.ts                   # Zod schemas (shared)
+    constants.ts                    # App constants
+
+  types/                            # TypeScript type definitions
+    user.ts
+    event.ts
+    registration.ts
+    payment.ts
+    instructor.ts
+    addon.ts
+    discount.ts
+    feedback.ts
+    notification.ts
+    api.ts                          # API response types
+
+
+5.2 Frontend Routing Summary
+
+Public Routes (no auth):
+- /                                 → Event listing
+- /events/[id]                      → Event detail
+
+Auth Routes:
+- /login                            → Login options (Google, Email OTP, WhatsApp OTP, Continue without login)
+- /register                         → Auto-create account form
+
+Participant Routes (auth required, role: participant):
+- /events/[id]/register             → Registration wizard (5-step)
+- /payment/[registrationId]         → Payment page
+- /confirmation/[registrationId]    → Confirmation page
+- /profile                          → Profile & event history
+
+Token-Based Routes (no auth, token validation):
+- /feedback/[token]                 → Feedback form
+
+Admin Routes (auth required, role: admin):
+- /admin                            → Dashboard analytics
+- /admin/events                     → Event list
+- /admin/events/new                 → Create event
+- /admin/events/[id]                → Event detail (tabs)
+- /admin/events/[id]/edit           → Edit event
+- /admin/templates                  → Template list
+- /admin/templates/new              → Create template
+- /admin/templates/[id]/edit        → Edit template
+- /admin/instructors                → Instructor list
+- /admin/instructors/new            → Create instructor
+- /admin/instructors/[id]/edit      → Edit instructor
+- /admin/specializations            → Specialization list
+- /admin/discounts                  → Promo code list
+- /admin/discounts/new              → Create promo code
+- /admin/discounts/[id]/edit        → Edit promo code
+- /admin/analytics                  → Detailed analytics
+
+
+5.3 Frontend Middleware
+
+Next.js Middleware (middleware.ts):
+- Auth guard: redirect unauthenticated users dari protected routes ke /login
+- Role guard: redirect participant dari /admin/* ke /
+- Admin guard: redirect admin ke /admin jika mengakses participant routes (optional)
+- Redirect authenticated users dari /login ke home
+
+Implementation:
+- JWT token dibaca dari cookie di middleware
+- Token validation: decode payload, check expiry
+- Role check berdasarkan payload.role
+
+
+5.4 Frontend API Client
+
+Axios instance dengan interceptors:
+
+Request Interceptor:
+- Attach JWT token dari cookie/store ke Authorization header
+- Set Content-Type: application/json
+
+Response Interceptor:
+- Handle 401 (Unauthorized): clear auth state, redirect ke /login
+- Handle 403 (Forbidden): redirect ke appropriate page
+- Handle 422 (Validation Error): parse field-level errors
+- Handle 429 (Rate Limited): show rate limit message
+- Handle 500 (Server Error): show generic error toast
+- Handle network error: show "Koneksi internet terputus" toast
+
+
+5.5 Frontend Responsibilities
+
+Frontend bertanggung jawab untuk:
+- Render UI sesuai UIUX Spec v1.5
+- Client-side validation (format check, required fields — menggunakan Zod)
+- User interaction dan form state management
+- API request dan response handling
+- Loading states (skeleton, spinner)
+- Error states (inline validation, toast, error pages)
+- Success states (toast, confirmation page)
+- Countdown timer (payment deadline)
+- Real-time price calculation display (from API response, bukan client-side calculation)
+
+PENTING: Business-critical calculation (pricing, slot availability, discount validation) TIDAK dilakukan di frontend. Frontend menampilkan hasil dari API calculate-price endpoint.
+
+
+------------------------------------------------------------------------
+
+6. BACKEND ARCHITECTURE
+
+6.1 Module Structure (NestJS)
+
+src/
+  modules/
+    auth/
+      auth.module.ts
+      auth.controller.ts            # POST /auth/google, /auth/email/*, /auth/whatsapp/*, /auth/auto-create, /auth/admin/login, /auth/logout
+      auth.service.ts               # Login logic, OTP handling, auto-create, account linking
+      strategies/
+        google.strategy.ts          # Google OAuth passport strategy
+        jwt.strategy.ts             # JWT passport strategy
+      guards/
+        jwt-auth.guard.ts           # JWT authentication guard
+        roles.guard.ts              # Role-based authorization guard
+      decorators/
+        roles.decorator.ts          # @Roles('admin') decorator
+        current-user.decorator.ts   # @CurrentUser() parameter decorator
+      dto/
+        google-login.dto.ts
+        otp-request.dto.ts
+        otp-verify.dto.ts
+        auto-create.dto.ts
+        admin-login.dto.ts
+
+    users/
+      users.module.ts
+      users.controller.ts           # GET /users/profile, PUT /users/profile, GET /users/event-history
+      users.service.ts
+      users.repository.ts
+      dto/
+
+    events/
+      events.module.ts
+      events.controller.ts          # GET /events (public), GET /events/:id (public)
+      events-admin.controller.ts    # POST/PUT/PATCH/DELETE /admin/events/*
+      events.service.ts
+      events.repository.ts
+      dto/
+
+    templates/
+      templates.module.ts
+      templates.controller.ts       # /admin/event-templates CRUD
+      templates.service.ts
+      templates.repository.ts
+      dto/
+
+    instructors/
+      instructors.module.ts
+      instructors.controller.ts     # /admin/instructors CRUD + GET /admin/instructors/active
+      instructors.service.ts
+      instructors.repository.ts
+      dto/
+
+    specializations/
+      specializations.module.ts
+      specializations.controller.ts # /admin/specializations CRUD
+      specializations.service.ts
+      specializations.repository.ts
+      dto/
+
+    pricing/
+      pricing.module.ts
+      pricing.controller.ts         # /admin/events/:id/prices CRUD, /admin/events/:id/pricing-rules CRUD
+      pricing.service.ts            # Price calculation engine
+      pricing.repository.ts
+      dto/
+
+    addons/
+      addons.module.ts
+      addons.controller.ts          # /admin/events/:id/addons CRUD
+      addons.service.ts
+      addons.repository.ts
+      dto/
+
+    discounts/
+      discounts.module.ts
+      discounts.controller.ts       # /admin/discount-codes (list, create, update), POST /discount-codes/validate
+      discounts.service.ts
+      discounts.repository.ts
+      dto/
+
+    registrations/
+      registrations.module.ts
+      registrations.controller.ts   # POST /pricing/calculate, POST /registrations, GET /registrations/:id
+      registrations.service.ts      # Registration creation, slot reservation, discount application
+      registrations.repository.ts
+      dto/
+
+    participants/
+      participants.module.ts
+      participants.controller.ts    # GET /admin/events/:id/participants
+      participants.service.ts
+      participants.repository.ts
+      dto/
+
+    payments/
+      payments.module.ts
+      payments.controller.ts        # POST /payments, GET /payments/:id, POST /payments/webhook, POST /admin/payments/:id/check, GET /admin/events/:id/payments
+      payments.service.ts           # Payment gateway integration
+      payments.repository.ts
+      dto/
+
+    attendance/
+      attendance.module.ts
+      attendance.controller.ts      # GET /admin/events/:id/attendance, PATCH /admin/attendance/:id
+      attendance.service.ts
+      attendance.repository.ts
+      dto/
+
+    feedback/
+      feedback.module.ts
+      feedback.controller.ts        # GET /feedback/:token, POST /feedback/:token, GET /admin/events/:id/feedback
+      feedback.service.ts
+      feedback.repository.ts
+      dto/
+
+    notifications/
+      notifications.module.ts
+      notifications.controller.ts   # GET /admin/notifications, GET /admin/notifications/unread-count, PATCH /admin/notifications/:id/read, POST /admin/notifications/read-all, GET /admin/events/:event_id/notification-status
+      notifications.service.ts      # Notification orchestration
+      notifications.repository.ts
+      adapters/
+        whatsapp.adapter.ts         # WhatsApp provider interface + implementation
+        email.adapter.ts            # Email provider interface + implementation
+      dto/
+
+    analytics/
+      analytics.module.ts
+      analytics.controller.ts       # GET /admin/dashboard, GET /admin/analytics
+      analytics.service.ts
+      dto/
+
+    exports/
+      exports.module.ts
+      exports.controller.ts         # GET /admin/events/:id/participants/export
+      exports.service.ts
+
+    uploads/
+      uploads.module.ts
+      uploads.controller.ts         # POST /admin/upload/poster
+      uploads.service.ts            # File validation, storage upload
+
+  common/
+    filters/
+      http-exception.filter.ts      # Global exception filter
+      all-exception.filter.ts       # Catch-all exception filter
+    interceptors/
+      transform.interceptor.ts      # Response transformation (wrap in { success, message, data })
+      logging.interceptor.ts        # Request/response logging
+      timeout.interceptor.ts        # Request timeout (30s default)
+    pipes/
+      validation.pipe.ts            # DTO validation pipe (class-validator)
+      parse-uuid.pipe.ts            # UUID parameter validation
+    decorators/
+      api-response.decorator.ts     # Swagger response decorators
+    constants/
+      error-codes.ts                # All error codes sesuai API Spec v1.6
+      notification-types.ts
+      status-enums.ts
+    utils/
+      hash.util.ts                  # bcrypt, SHA-256 helpers
+      phone.util.ts                 # Phone number formatting/validation
+      date.util.ts                  # Timezone-aware date utilities
+
+  database/
+    prisma/
+      schema.prisma                 # Database schema (sesuai ERD v1.6)
+      migrations/                   # Migration files
+      seed.ts                       # Seed data (admin user, sample data)
+    prisma.module.ts
+    prisma.service.ts               # Prisma client singleton
+
+  config/
+    app.config.ts                   # Application configuration
+    database.config.ts
+    jwt.config.ts
+    payment.config.ts
+    whatsapp.config.ts
+    email.config.ts
+    storage.config.ts
+    cors.config.ts
+
+  jobs/                             # Background jobs (scheduled tasks)
+    jobs.module.ts
+    payment-expiration.job.ts       # Cron: setiap 5 menit
+    event-reminder.job.ts           # Cron: daily 08:00 WIB
+    post-event.job.ts               # Cron: daily 10:00 WIB (check completed events)
+
+  main.ts                           # Application bootstrap
+
+
+6.2 Backend Layer Architecture
+
+Controller Layer:
+- Receive HTTP request
+- Validate request DTO (class-validator + Zod)
+- Apply authentication guard (JWT)
+- Apply authorization guard (Roles)
+- Delegate to service layer
+- Return standardized API response
+
+Service Layer:
+- Business logic implementation
+- Pricing calculation engine
+- Registration logic (slot reservation, discount stacking)
+- Payment processing orchestration
+- Notification triggering
+- Transaction coordination
+- Cross-module communication
+
+Repository/Data Access Layer:
+- Database queries via Prisma Client
+- Transaction handling (Prisma.$transaction)
+- Query optimization
+- Soft delete filtering (WHERE deleted_at IS NULL)
+
+Integration Layer (Adapters):
+- Payment gateway adapter (Midtrans)
+- WhatsApp provider adapter
+- Email provider adapter
+- Google OAuth adapter
+- Storage adapter (Supabase Storage)
+
+Adapter Pattern:
+Setiap external service menggunakan interface/adapter pattern:
+
+interface WhatsAppProvider {
+  sendMessage(phone: string, template: string, data: object): Promise<SendResult>
+}
+
+class FonnteAdapter implements WhatsAppProvider { ... }
+class WablasAdapter implements WhatsAppProvider { ... }
+
+Provider dapat diganti tanpa mengubah NotificationService.
+
+
+6.3 Business Logic Rules (Backend-Only)
+
+Business-critical rules yang HARUS berada di backend (tidak di frontend):
+
+1. Event capacity validation dan slot reservation
+2. Slot counting: SUM(participants) WHERE registration_status IN ('pending', 'confirmed')
+3. Concurrent booking: database-level locking (SELECT FOR UPDATE)
+4. Pricing calculation:
+   - Determine base price (early bird atau normal berdasarkan tanggal)
+   - Apply bundle discount (berdasarkan pax count dan pricing rules)
+   - Apply promo code (validate code, quota, expiry, status)
+   - Calculate add-on subtotal
+   - Apply discount stacking order: 1) Early Bird, 2) Bundle, 3) Promo Code
+   - Enforce minimum total Rp0
+5. Registration creation (atomic transaction):
+   - Validate slot availability
+   - Create registration record
+   - Create participant records
+   - Create registration_addon records
+   - Reserve slot (deduct capacity)
+   - Deduct add-on available_quantity
+   - Increment promo code used_count (if applicable)
+   - Set payment deadline (60 minutes)
+   - Payment record dibuat saat user memilih metode bayar (POST /payments), bukan saat registrasi
+   - Attendance records dibuat saat payment confirmed (bukan saat registrasi)
+6. Payment webhook processing (11 actions, atomic):
+   - Validate webhook signature
+   - Verify transaction ID exists (lookup payment via transaction_id; tidak ditemukan → log warning, balas 200)
+   - Verify amount matches
+   - Check idempotency (prevent double processing)
+   - Guard: jika registration_status = expired → jangan proses, log critical, balas 200
+   - Update payment status → paid
+   - Update payment paid_at
+   - Update registration payment_status → paid dan registration_status → confirmed
+   - Create attendance records (status: not_checked) for all participants
+   - Create feedback record + token untuk setiap participant
+   - Send WhatsApp confirmation to buyer
+   - Create admin notification (payment_success)
+7. Payment expiration processing:
+   - Update registration status → expired dan payment_status → expired; payments.status → expired jika ada (registrasi TIDAK di-soft-delete)
+   - Release reserved slots
+   - Restore add-on available_quantity
+   - Restore promo code used_count (if applicable)
+8. Feedback token generation dan validation
+9. Attendance update (only for confirmed registrations)
+10. Event completion: set completed_at dan memicu post-event notification secara asinkron (job harian hanya catch-up)
+11. Admin notification admin_new_registration dibuat saat registrasi berhasil dibuat (status pending)
+
+
+------------------------------------------------------------------------
+
+7. DATABASE ARCHITECTURE
+
+7.1 Main Domains (17 Tables — sesuai ERD v1.6)
+
+User Domain:
+- users
+
+Event Domain:
+- events
+- event_templates
+
+Instructor Domain:
+- instructors
+- specializations
+- instructor_specialization_mapping
+
+Pricing Domain:
+- event_prices
+- event_pricing_rules
+
+Registration Domain:
+- registrations
+- participants
+
+Add-on Domain:
+- addons
+- registration_addons
+
+Payment Domain:
+- payments
+
+Attendance Domain:
+- attendance
+
+Feedback Domain:
+- feedback
+
+Notification Domain:
+- notifications
+
+Discount Domain:
+- discount_codes
+
+
+7.2 Database Design Rules
+
+1. PostgreSQL sebagai primary relational database.
+2. UUID (gen_random_uuid()) sebagai primary key semua tabel.
+3. Foreign key constraints untuk menjaga relational integrity.
+4. Database-level transaction untuk proses kritis:
+   - Registration creation (slot reservation + participant creation + add-on deduction)
+   - Payment webhook processing (payment update + registration confirm + attendance creation + notification)
+   - Payment expiration (status update + slot release + add-on restore + promo restore)
+5. Unique constraints:
+   - users: phone_number (UNIQUE), email (UNIQUE)
+   - registrations: event_id + buyer_user_id (UNIQUE parsial: WHERE deleted_at IS NULL AND registration_status <> 'expired', via raw SQL migration)
+   - attendance: event_id + participant_id (UNIQUE)
+   - feedback: event_id + participant_id (UNIQUE)
+   - feedback: token (UNIQUE)
+   - discount_codes: code (UNIQUE)
+   - payments: registration_id (UNIQUE, 1:1)
+6. Soft delete (deleted_at TIMESTAMP NULLABLE) pada: users, events, registrations.
+7. Timestamps: created_at pada semua tabel; updated_at pada tabel yang datanya dapat diubah (users, events, instructors, event_templates, registrations, payments, discount_codes), sesuai ERD v1.6.
+8. Pricing calculation dilakukan server-side, hasil disimpan di registrations (subtotal, discount_amount, total_payment).
+9. Participant bersifat event-based melalui registration, bukan global CRM.
+
+
+7.3 Database Connection & Pooling
+
+Supabase menyediakan PgBouncer untuk connection pooling:
+- Direct connection (port 5432): untuk migrations (prisma migrate)
+- Pooled connection (port 6543): untuk application queries (prisma client)
+
+Prisma Configuration:
+- DATABASE_URL: pooled connection string (port 6543) — untuk application
+- DIRECT_URL: direct connection string (port 5432) — untuk migrations
+
+Connection Limits:
+- Free tier: ~60 connections via pooler
+- Prisma default connection pool: 10 connections per instance
+
+
+7.4 Database Indexing Strategy
+
+Indexes yang diimplementasikan sesuai ERD v1.6:
+
+users:
+- UNIQUE INDEX on phone_number (primary lookup)
+- UNIQUE INDEX on email (secondary lookup)
+- INDEX on role
+- INDEX on auth_provider
+- INDEX on deleted_at
+
+events:
+- INDEX on status
+- INDEX on date
+- INDEX on instructor_id
+- INDEX on template_id
+- INDEX on deleted_at
+
+registrations:
+- UNIQUE INDEX on (event_id, buyer_user_id) WHERE deleted_at IS NULL AND registration_status <> 'expired' (partial, via raw SQL migration)
+- INDEX on event_id
+- INDEX on buyer_user_id
+- INDEX on registration_status
+- INDEX on payment_status
+- INDEX on payment_deadline — untuk payment expiration job
+- INDEX on discount_code_id
+- INDEX on deleted_at
+
+participants:
+- INDEX on registration_id
+- INDEX on user_id
+
+payments:
+- UNIQUE INDEX on registration_id
+- INDEX on status
+- INDEX on transaction_id
+
+attendance:
+- UNIQUE INDEX on (event_id, participant_id)
+- INDEX on event_id
+- INDEX on status
+
+feedback:
+- UNIQUE INDEX on (event_id, participant_id)
+- UNIQUE INDEX on token
+- INDEX on event_id
+
+discount_codes:
+- UNIQUE INDEX on code
+- INDEX on status
+- INDEX on expiry_date
+
+notifications:
+- INDEX on user_id
+- INDEX on event_id
+- INDEX on registration_id
+- INDEX on (user_id, is_read) — untuk admin unread count
+- INDEX on type
+- INDEX on channel
+- INDEX on status
+- INDEX on is_read
+
+
+7.5 Timezone Handling
+
+Database:
+- Semua TIMESTAMP disimpan dalam UTC di PostgreSQL.
+- Prisma dan PostgreSQL default menyimpan timestamp dalam UTC.
+
+Application Layer:
+- Backend menerima dan mengembalikan timestamp dalam ISO 8601 dengan timezone offset: 2027-03-15T08:00:00+07:00
+- Backend melakukan konversi UTC ↔ WIB (Asia/Jakarta, UTC+7) saat diperlukan.
+
+Frontend:
+- Menampilkan tanggal/waktu dalam format Indonesia (WIB).
+- Formatting menggunakan date-fns dengan locale Indonesia.
+
+Background Jobs:
+- Payment expiration: berjalan setiap 5 menit, timezone-independent (cek deadline vs current UTC time).
+- Event reminder H-1: berjalan pukul 08:00 WIB (01:00 UTC). Cron expression: 0 1 * * * (UTC).
+- Post-event notification: timezone-aware, mengecek event date dalam WIB context.
+
+
+------------------------------------------------------------------------
+
+8. API ARCHITECTURE
+
+8.1 API Style
+
+REST API
+Base path: /api/v1
+Total endpoints: 79 (sesuai API Spec v1.6)
+
+
+8.2 Response Format
+
+Success:
+{
+  "success": true,
+  "message": "Success message",
+  "data": { ... }
+}
+
+Success with Pagination:
+{
+  "success": true,
+  "message": "Success",
+  "data": [ ... ],
+  "pagination": {
+    "page": 1,
+    "per_page": 20,
+    "total_items": 85
+  }
+}
+
+Error:
+{
+  "success": false,
+  "message": "Human-readable error message",
+  "error_code": "ERROR_CODE",
+  "errors": {
+    "field_name": ["Validation message"]
+  }
+}
+
+Response transformation dilakukan oleh global interceptor (TransformInterceptor) sehingga controller hanya return data object.
+
+
+8.3 Authentication & Authorization
+
+Protected Endpoints:
+- JWT dikirim via httpOnly cookie (primary) ATAU Authorization: Bearer {jwt_token} (fallback)
+- Prioritas: Cookie dicek terlebih dahulu, jika tidak ada maka cek Bearer header
+- JWT decoded oleh JwtAuthGuard
+- Role checked oleh RolesGuard (@Roles('admin'))
+
+Public Endpoints (no auth):
+- GET /events (list published events)
+- GET /events/:id (event detail)
+- POST /auth/* (all auth endpoints, kecuali POST /auth/logout yang membutuhkan token)
+- GET /feedback/:token (feedback form)
+- POST /feedback/:token (submit feedback)
+- POST /payments/webhook (payment callback, signature validation)
+
+Participant Endpoints (auth required, sesuai API Spec v1.6):
+- POST /pricing/calculate (price calculation)
+- POST /discount-codes/validate (validate promo code)
+
+
+8.4 API Domain Summary
+
+Authentication:     11 endpoints (/auth/*)
+User Profile:        3 endpoints (/users/*)
+Event Public:        2 endpoints (/events/*)
+Event Admin:        10 endpoints (/admin/events/*)
+Template:            5 endpoints (/admin/event-templates/*)
+Instructor:          6 endpoints (/admin/instructors/*, /admin/instructors/active)
+Specialization:      4 endpoints (/admin/specializations/*)
+Pricing:             7 endpoints (/admin/events/:id/prices/*, /admin/events/:id/pricing-rules/*)
+Add-on:              4 endpoints (/admin/events/:id/addons/*)
+Discount Code:       4 endpoints (/admin/discount-codes/*, /discount-codes/validate)
+Registration:        3 endpoints (/registrations/*)
+Payment:             5 endpoints (/payments/*, /admin/payments/:id/check, /admin/events/:id/payments)
+Participant:         1 endpoint  (/admin/events/:id/participants)
+Attendance:          2 endpoints (/admin/events/:id/attendance, /admin/attendance/:id)
+Feedback:            3 endpoints (/feedback/*, /admin/events/:id/feedback)
+Notification:        5 endpoints (/admin/notifications/*)
+Analytics:           2 endpoints (GET /admin/dashboard, GET /admin/analytics)
+Export:              1 endpoint  (/admin/events/:id/participants/export)
+Upload:              1 endpoint  (/admin/upload/poster)
+
+Total: 79 endpoints
+
+
+8.5 API Versioning
+
+Current version: v1
+Base URL: /api/v1
+
+Versioning Strategy:
+- URL-based versioning (/api/v1, /api/v2)
+- New major version dibuat jika ada breaking changes
+- Backward compatibility dipertahankan per major version
+- Deprecation: endpoint lama ditandai deprecated di documentation, dihapus setelah semua client migrasi
+- MVP hanya menggunakan v1
+
+
+8.6 CORS Configuration
+
+NestJS CORS configuration:
+
+Development:
+- origin: ['http://localhost:3000'] (Next.js dev server)
+- credentials: true
+- methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+- allowedHeaders: ['Content-Type', 'Authorization']
+
+Production:
+- origin: ['https://ruanasaspace.com', 'https://www.ruanasaspace.com']
+- credentials: true
+- methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
+- allowedHeaders: ['Content-Type', 'Authorization']
+
+Webhook endpoint (/payments/webhook) memiliki CORS terpisah yang mengizinkan origin payment gateway.
+
+
+8.7 Rate Limiting
+
+Implementation: @nestjs/throttler
+
+Limits per endpoint type (sesuai API Spec v1.6):
+- Auth endpoints (login, OTP): 10 requests per menit per IP
+- OTP request: 3 requests per 15 menit per identifier (phone/email)
+- General API: 100 requests per menit per IP
+- Public event list: 60 requests per menit per IP
+- Registration: 5 requests per menit per user
+- Webhook: 50 requests per menit per IP (dari payment gateway)
+- Upload: 10 requests per menit per user
+- Auto-create account: 5 requests per menit per IP
+
+Storage:
+- MVP: in-memory (default @nestjs/throttler)
+- Growth: Redis-backed rate limiter
+
+
+------------------------------------------------------------------------
+
+9. REGISTRATION ARCHITECTURE
+
+9.1 Registration Flow (End-to-End)
+
+Event Detail Page
+  |
+  v
+Authentication / Auto Account Creation
+  |
+  v
+Registration Wizard (5 Steps)
+  |
+  Step 1: Participant Data (auto-fill from user profile)
+  Step 2: Select Pax + Add Participant Names
+  Step 3: Select Add-ons (skip if none)
+  Step 4: Apply Discount (auto + promo code)
+  Step 5: Order Review
+  |
+  v
+API: POST /pricing/calculate
+  → Returns price breakdown (early bird, bundle, promo, add-on, total)
+  |
+  v
+API: POST /registrations
+  → Validate slot availability (with database locking)
+  → Create registration (status: pending)
+  → Create participant records
+  → Create registration_addon records
+  → Deduct slot, add-on quantity, promo used_count
+  → Set payment deadline (NOW + 60 minutes)
+  → Return registration_id
+  |
+  v
+API: POST /payments (boleh dipanggil ulang selama pending untuk ganti metode)
+  → User memilih payment method (QRIS / Bank Transfer)
+  → Create payment record (status: pending_payment, payment_method: chosen method)
+  → Create transaction at payment gateway (Midtrans)
+  → Return QR code / Virtual Account data
+  |
+  v
+Payment Page (countdown timer)
+  |
+  v
+Payment Gateway Callback
+  → POST /payments/webhook
+  → Validate signature
+  → Verify transaction
+  → Update payment → paid
+  → Update registration payment_status → paid, registration_status → confirmed
+  → Create attendance records (not_checked) and feedback records (token) for all participants
+  → Send WhatsApp confirmation
+  → Create admin notifications
+  |
+  v
+Confirmation Page
+
+
+9.2 Slot Reservation Logic
+
+Saat registration dibuat (atomic transaction):
+1. SELECT remaining capacity WITH LOCK (SELECT FOR UPDATE pada event row)
+2. Validate: remaining capacity >= requested pax
+3. Create registration (status: pending)
+4. Create participants
+5. Payment deadline = NOW() + INTERVAL '60 minutes'
+
+Slot counting:
+- Occupied = SUM(total_pax) FROM registrations WHERE event_id = ? AND registration_status IN ('pending', 'confirmed') AND deleted_at IS NULL
+- Remaining = event.capacity - occupied
+
+Jika payment expired:
+- Registration status → expired
+- Slot otomatis dikembalikan (expired registrations tidak dihitung)
+
+Race Condition Handling:
+- Database-level: SELECT FOR UPDATE pada event row mencegah concurrent reads
+- Application-level: try-catch, jika constraint violation → return "Slot sudah penuh"
+
+
+------------------------------------------------------------------------
+
+10. PRICING ARCHITECTURE
+
+10.1 Pricing Components
+
+1. Base Price (dari event_prices)
+   - Normal Price: harga standar
+   - Early Bird Price: harga spesial dengan periode (start_date, end_date)
+
+2. Bundle Discount (dari event_pricing_rules)
+   - Berdasarkan jumlah pax
+   - Contoh: min 2 pax → 10%, min 3 pax → 15%
+   - Type: percentage atau fixed amount
+
+3. Promo Code (dari discount_codes)
+   - Input manual dari peserta
+   - Validasi: code valid, not expired, quota available, status active
+   - Type: percentage atau fixed amount
+
+4. Add-on (dari addons + registration_addons)
+   - Dihitung terpisah: price × quantity per add-on
+
+
+10.2 Pricing Calculation Order (Discount Stacking)
+
+PricingService.calculatePrice():
+
+1. Tentukan base_price_per_pax:
+   → Cek apakah ada early bird price yang aktif (current date within start_date - end_date)
+   → Jika ya: base_price = early_bird_price
+   → Jika tidak: base_price = normal_price
+
+2. Hitung subtotal_ticket:
+   → base_price_per_pax × total_pax
+
+3. Hitung bundle_discount:
+   → Cek event_pricing_rules, cari rule dengan min_quantity <= total_pax (ambil yang paling besar min_quantity)
+   → Jika percentage: bundle_discount = subtotal_ticket × (discount_value / 100)
+   → Jika fixed: bundle_discount = discount_value × total_pax
+   → Jika tidak ada rule: bundle_discount = 0
+
+4. Subtotal setelah bundle:
+   → after_bundle = subtotal_ticket - bundle_discount
+
+5. Hitung promo_discount:
+   → Validasi promo code (exists, active, not expired, quota available)
+   → Jika percentage: promo_discount = after_bundle × (discount_value / 100)
+   → Jika fixed: promo_discount = discount_value
+   → Jika tidak ada promo: promo_discount = 0
+
+6. Hitung subtotal_addon:
+   → SUM(addon_price × addon_quantity) untuk semua selected add-ons
+
+7. Hitung total_payment:
+   → total = after_bundle - promo_discount + subtotal_addon
+   → Jika total < 0: total = 0 (minimum Rp0)
+
+Note: Promo code dihitung SETELAH bundle discount (after_bundle), TIDAK termasuk add-on.
+Semua kalkulasi di backend. Frontend hanya menampilkan hasil dari API /pricing/calculate.
+
+
+------------------------------------------------------------------------
+
+11. PAYMENT ARCHITECTURE
+
+11.1 Payment Flow
+
+Registration Created (status: pending, payment: pending_payment)
+  |
+  v
+POST /payments (create payment; boleh dipanggil ulang selama pending untuk ganti metode — transaksi lama dibatalkan, baris payment yang sama di-update)
+  → Backend calls Midtrans API: Create Transaction (order_id = {registration_id}-{unix_ts}, custom_expiry = sisa waktu sampai payment_deadline)
+  → Midtrans returns: payment URL, QR code, VA number
+  → Backend saves payment record with transaction_id
+  → Return QR/VA data + payment deadline to frontend
+  |
+  v
+Frontend: Display Payment Page
+  → QRIS: show QR code image + countdown timer
+  → Bank Transfer: show VA number + bank name + countdown timer
+  |
+  v
+User completes payment via bank/e-wallet app
+  |
+  v
+Midtrans sends webhook callback
+  → POST /payments/webhook
+  |
+  v
+Backend Webhook Handler (11 actions, atomic):
+  1. Validate webhook signature (HMAC-SHA512 with server key)
+  2. Parse transaction data (order_id, transaction_status, gross_amount) dan cari payment via payments.transaction_id (= order_id {registration_id}-{unix_ts}); tidak ditemukan (mis. transaksi lama yang sudah diganti metode) → log warning, balas 200
+  3. Verify: payment exists AND amount matches
+  4. Check idempotency: if already paid, skip (return 200)
+  5. Guard: jika registration_status = expired → jangan proses, log critical, balas 200
+  6. Update payment status → paid, set paid_at
+  7. Update registration payment_status → paid dan registration_status → confirmed
+  8. Create attendance records (status: not_checked) for all participants
+  9. Create feedback record + token untuk setiap participant
+  10. Trigger WhatsApp notification (registration confirmation) to buyer
+  11. Create admin notifications (payment_success, event_almost_full if applicable)
+  |
+  v
+Frontend: polls GET /payments/:id/status OR receives push
+  → Redirect to Confirmation Page
+
+
+11.2 Payment Expiration
+
+- Deadline: 60 menit sejak registration dibuat
+- Cron job: setiap 5 menit (*/5 * * * *)
+- Logic: find all registrations WHERE payment_status = 'pending_payment' AND payment_deadline < NOW()
+- Actions per expired registration:
+  1. Update registration_status → 'expired'
+  2. Update payment_status → 'expired'
+  3. Release slots (registration no longer counted in capacity)
+  4. Restore add-on available_quantity
+  5. Restore promo code used_count (if promo was applied)
+- Registrasi expired tidak di-soft-delete (deleted_at tetap NULL) dan tidak memblokir registrasi baru (unique parsial).
+
+
+11.3 Webhook Security
+
+- Signature validation: HMAC-SHA512 using Midtrans server key
+- Transaction ID validation: must exist in payments table
+- Amount validation: webhook amount must match stored amount
+- Idempotency: check payment status before processing; if already paid, return 200 OK without re-processing
+- IP whitelist: optional, Midtrans provides list of webhook source IPs
+- HTTPS only: webhook endpoint must be HTTPS
+
+
+------------------------------------------------------------------------
+
+12. NOTIFICATION ARCHITECTURE
+
+12.1 Notification Types
+
+Participant Notifications (via WhatsApp):
+1. Registration Confirmation
+   - Trigger: Payment success (webhook handler)
+   - Content: event detail, registration status, participant list, WhatsApp community link
+   - Recipient: buyer phone number
+
+2. Event Reminder H-1
+   - Trigger: Scheduled job (daily 08:00 WIB)
+   - Content: event detail, guidebook, rundown, barang bawaan, lokasi
+   - Recipient: all buyers with confirmed registration for tomorrow's events
+
+3. Post-Event Notification
+   - Trigger: otomatis saat event di-complete (asinkron); job harian hanya catch-up untuk completed + post_event_sent = false. Admin juga dapat trigger manual.
+   - Content: thank you message, satu pesan per buyer berisi link feedback untuk setiap participant yang present, documentation link
+   - Recipient: all buyers with confirmed registration. Phone number via JOIN users.
+   - After send: set events.post_event_sent = true
+
+Admin Notifications (In-App):
+1. New Registration
+   - Trigger: Registration created (status: pending)
+   - Content: "[Nama] mendaftar [X pax] untuk [Event Name]"
+
+2. Payment Success
+   - Trigger: Payment confirmed via webhook
+   - Content: "Pembayaran dari [Nama] untuk [Event Name] berhasil (Rp xxx)"
+
+3. Event Almost Full
+   - Trigger: Remaining capacity <= 10% of total capacity
+   - Content: "[Event Name] hampir penuh — tersisa [X] slot"
+
+
+12.2 Notification Service Architecture
+
+Application Layer
+  |
+  v
+NotificationService
+  |
+  +---- WhatsAppAdapter (interface)
+  |       |
+  |       +---- FonnteAdapter (implementation)
+  |       +---- WablasAdapter (implementation)
+  |       +---- WhatsAppCloudAdapter (implementation)
+  |
+  +---- EmailAdapter (interface)
+  |       |
+  |       +---- ResendAdapter (implementation)
+  |       +---- BrevoAdapter (implementation)
+  |
+  +---- InAppNotificationService
+          |
+          +---- Save to notifications table (channel: 'in_app')
+
+Provider selection via environment variable (WHATSAPP_PROVIDER, EMAIL_PROVIDER).
+
+
+12.3 Notification Data Model
+
+Semua notifications disimpan di tabel notifications (sesuai ERD v1.6):
+- WhatsApp: channel = 'whatsapp', status tracking (pending → sent / failed)
+- In-app admin: channel = 'in_app', is_read tracking, badge count
+
+Admin notification bell (sesuai UIUX Spec):
+- GET /admin/notifications → list with unread_count
+- PATCH /admin/notifications/:id/read → mark single as read
+- POST /admin/notifications/read-all → mark all as read
+- Notification dropdown: scrollable, max ~400px, click → navigate to event detail
+
+
+12.4 Notification Failure Handling (MVP)
+
+- Jika WhatsApp/Email gagal terkirim: status = 'failed' di tabel notifications
+- TIDAK ada auto-retry pada MVP
+- Admin dapat melihat notification status di dashboard
+- Future: retry queue dengan exponential backoff
+
+
+------------------------------------------------------------------------
+
+13. BACKGROUND JOB ARCHITECTURE
+
+Background jobs menggunakan NestJS built-in scheduler (@nestjs/schedule) pada MVP.
+
+13.1 Payment Expiration Job
+
+Name: PaymentExpirationJob
+Frequency: Every 5 minutes
+Cron Expression: */5 * * * * (setiap 5 menit)
+Timezone: UTC (timezone-independent, compare deadline vs NOW())
+
+Process:
+1. Query: SELECT registrations WHERE payment_status = 'pending_payment' AND payment_deadline < NOW() AND registration_status = 'pending' AND deleted_at IS NULL
+2. For each expired registration (dalam transaction):
+   a. Update registration.registration_status → 'expired' dan registration.payment_status → 'expired'; jika payments row ada: payments.status → 'expired'
+   b. Restore add-on available_quantity (SUM from registration_addons)
+   c. Restore discount_code.used_count (if discount_code_id is set)
+   d. Registrasi TIDAK di-soft-delete (deleted_at tetap NULL)
+   e. Log: "[Registration ID] expired, slots released"
+3. Slot release otomatis: expired registrations tidak dihitung dalam capacity karena status bukan 'pending' atau 'confirmed'
+
+
+13.2 Event Reminder Job
+
+Name: EventReminderJob
+Frequency: Daily at 08:00 WIB (01:00 UTC)
+Cron Expression: 0 1 * * * (UTC)
+
+Process:
+1. Calculate tomorrow_date in WIB timezone (Asia/Jakarta)
+2. Query: SELECT events WHERE date = tomorrow_date AND status = 'published'
+3. For each event:
+   a. Query confirmed registrations → get buyer user details
+   b. For each buyer:
+      - Create notification record (type: event_reminder, channel: whatsapp, status: pending)
+      - Send WhatsApp message via WhatsAppAdapter
+      - Update notification status (sent / failed)
+
+
+13.3 Post-Event Notification Job
+
+Name: PostEventJob
+Frequency: Daily at 10:00 WIB (03:00 UTC)
+Cron Expression: 0 3 * * * (UTC)
+
+Process:
+Peran job: catch-up. Pengiriman utama dipicu saat event di-complete (asinkron, via POST /admin/events/{id}/complete).
+
+1. Query: SELECT events WHERE status = 'completed' AND post_event_sent = FALSE
+2. For each event:
+   a. Feedback tokens sudah di-generate saat payment confirmed. Post-event hanya mengirim link feedback ke participant dengan attendance = present.
+   b. For each buyer dengan registrasi confirmed (satu pesan per buyer berisi link feedback untuk setiap participant miliknya yang present):
+      - Create notification record (type: post_event, channel: whatsapp, status: pending)
+      - Send WhatsApp message with feedback links (token sudah ada)
+      - Update notification status
+   c. Mark event as post_event_sent = TRUE
+
+Note: Admin juga dapat trigger manual via POST /admin/events/{id}/send-post-event.
+
+
+13.4 Queue Strategy
+
+MVP:
+- Background jobs menggunakan NestJS @Cron decorator (in-process scheduler)
+- Berjalan di process yang sama dengan API server
+- Cukup untuk volume MVP (< 100 concurrent users)
+
+Growth Stage:
+- Tambahkan BullMQ (Redis-backed queue) untuk job processing
+- Pisahkan worker process dari API server
+- Retry mechanism dengan exponential backoff
+- Job monitoring dashboard
+
+
+------------------------------------------------------------------------
+
+14. SECURITY ARCHITECTURE
+
+14.1 Authentication Security
+
+Participant:
+- Passwordless: Google OAuth 2.0, Email OTP, WhatsApp OTP
+- Auto-create account: phone primary check → email secondary check
+
+Admin:
+- Email + Password
+- Password: bcrypt hash (12 rounds)
+
+JWT:
+- Algorithm: HS256
+- Secret: minimum 256-bit, dari environment variable
+- Expiry: 7 hari sliding window
+- Payload: { sub, role, iat, exp }
+- Delivery: httpOnly secure cookie (primary) + Authorization Bearer header (fallback). Backend support keduanya, prioritas cookie dahulu.
+- Blacklisting: invalidated tokens stored in memory until natural expiry
+
+OTP:
+- 6 digit, 5 menit expiry
+- Hashed (SHA-256) sebelum disimpan
+- Max 5 attempts per session
+- Rate limit: 3 requests per 15 menit per identifier
+- OTP session ID: random UUID, bukan sequential
+
+
+14.2 Authorization
+
+Role-Based Access Control (RBAC):
+- admin: full access ke semua admin endpoints
+- participant: access ke participant endpoints only
+
+Implementation:
+- @Roles('admin') decorator pada admin controllers
+- RolesGuard membaca role dari JWT payload
+- Unauthorized access returns 403 Forbidden
+
+Resource-Level Authorization:
+- Participant hanya bisa akses data miliknya sendiri (profile, registrations, event history)
+- Feedback: access via unique token (no auth required, token validates ownership)
+
+
+14.3 Data Security
+
+Transport:
+- HTTPS (TLS 1.2+) wajib untuk semua komunikasi
+- HTTP → HTTPS redirect di Vercel dan Render
+
+Storage:
+- Database: Supabase provides encryption at rest (AES-256)
+- Sensitive data (email, phone): encrypted at rest oleh database provider
+- Password hash: bcrypt (never stored in plain text)
+- OTP: hashed (SHA-256) sebelum disimpan
+- Secrets: environment variables only, never in code or git
+
+Input Security:
+- Input validation: class-validator + Zod (whitelist approach)
+- SQL injection prevention: Prisma parameterized queries (built-in)
+- XSS protection: input sanitization, Content-Security-Policy headers
+- CSRF: SameSite cookie attribute + CORS origin validation
+
+Payment Security:
+- Payment credentials (server key, client key) di environment variables only
+- Server key TIDAK di-expose ke frontend
+- Webhook signature verification (HMAC-SHA512)
+- Idempotency key (order_id = {registration_id}-{unix_ts}, disimpan di payments.transaction_id)
+- Amount verification pada webhook callback
+
+Secrets Management:
+- Semua secrets di environment variables
+- .env file di .gitignore
+- Never commit secrets to git
+- Never expose in frontend public environment (NEXT_PUBLIC_* hanya untuk non-sensitive config)
+
+
+14.4 Security Headers
+
+Recommended headers (set di NestJS middleware atau Helmet):
+- Strict-Transport-Security: max-age=31536000; includeSubDomains
+- X-Content-Type-Options: nosniff
+- X-Frame-Options: DENY
+- X-XSS-Protection: 1; mode=block
+- Content-Security-Policy: sesuai kebutuhan
+- Referrer-Policy: strict-origin-when-cross-origin
+
+Library: helmet (NestJS middleware)
+
+
+------------------------------------------------------------------------
+
+15. ERROR HANDLING ARCHITECTURE
+
+15.1 Global Exception Filter
+
+NestJS global exception filter menangkap semua unhandled exceptions:
+
+HttpExceptionFilter:
+- Catches HttpException dan turunannya
+- Returns standardized error response format: { success: false, message, error_code, errors }
+
+AllExceptionFilter:
+- Catches semua error yang tidak ter-handle
+- Logs full stack trace
+- Returns generic 500 error ke client (tanpa stack trace)
+- Trigger error alert (future: ke monitoring service)
+
+
+15.2 Error Response Standardization
+
+Semua error response mengikuti format API Spec v1.6:
+
+{
+  "success": false,
+  "message": "Human-readable error message",
+  "error_code": "ERROR_CODE",
+  "errors": {
+    "field_name": ["Validation message"]
+  }
+}
+
+Error codes organized by domain (30+ codes):
+- AUTH_*: authentication errors
+- EVENT_*: event-related errors
+- REGISTRATION_*: registration errors
+- PAYMENT_*: payment errors
+- OTP_*: OTP errors
+- VALIDATION_*: input validation errors
+
+
+15.3 Error Categorization & Logging
+
+Critical (immediate attention):
+- Payment processing errors
+- Webhook signature validation failures
+- Database connection errors
+- External service total failures
+
+Warning (monitor):
+- WhatsApp/Email notification failures
+- OTP delivery failures
+- Rate limit hits
+- Slow queries (> 1 second)
+
+Info (operational):
+- Registration created/confirmed/expired
+- Payment status changes
+- Attendance updates
+- Admin actions (event publish, complete)
+
+
+15.4 External Service Error Handling
+
+Payment Gateway:
+- Timeout: 30 seconds, return error to user "Payment gateway tidak merespons, silakan coba lagi"
+- 5xx errors: return error to user, log for monitoring
+- Registration tetap pending, user bisa retry
+
+WhatsApp/Email Provider:
+- Timeout: 10 seconds
+- Failure: mark notification status = 'failed', continue processing
+- No auto-retry on MVP
+- Admin can see failed notifications in dashboard
+
+Google OAuth:
+- Token validation failure: return 401
+- Google API down: show error, suggest alternative login methods
+
+
+------------------------------------------------------------------------
+
+16. CACHING STRATEGY
+
+MVP menggunakan caching minimal. Caching ditambahkan bertahap berdasarkan kebutuhan.
+
+16.1 Application-Level Caching (MVP)
+
+TanStack Query (Frontend):
+- Event list: staleTime 30 seconds, background refetch
+- Event detail: staleTime 60 seconds
+- Admin data: staleTime 10 seconds (more frequent updates)
+- Profile: staleTime 5 minutes
+- Automatic cache invalidation after mutations
+
+OTP Rate Limiting:
+- In-memory map (NestJS @nestjs/throttler)
+- Key: identifier (phone/email) + action type
+- TTL: 15 minutes
+
+JWT Blacklist:
+- In-memory Set
+- Auto-cleanup: remove tokens past their natural expiry
+- Cleared on server restart (acceptable for MVP — user just re-logs in)
+
+16.2 Static Asset Caching
+
+Vercel CDN:
+- Static files (JS, CSS, images): immutable, long cache (1 year, content-hashed filenames)
+- HTML pages: no-cache, always revalidate (untuk SSR freshness)
+- API responses: no-cache (dynamic data)
+
+Supabase Storage:
+- Public bucket images: CDN-cached, Cache-Control header set by Supabase
+- Image URLs include version/hash for cache busting when updated
+
+16.3 Growth Stage Caching
+
+Saat volume meningkat, tambahkan Redis untuk:
+- API response caching (event list, published events)
+- Session management (JWT blacklist persistence)
+- Rate limiting (distributed, multi-instance)
+- Background job queue (BullMQ)
+- Real-time notification (pub/sub)
+
+
+------------------------------------------------------------------------
+
+17. TESTING ARCHITECTURE
+
+17.1 Testing Framework
+
+Unit Testing: Jest (built-in NestJS)
+Integration Testing: Jest + Supertest (API-level)
+E2E Testing: Playwright (browser-based, optional MVP)
+
+17.2 Testing Strategy
+
+Unit Tests (mandatory):
+- Service layer business logic:
+  - PricingService: calculate price with all discount combinations
+  - RegistrationService: slot reservation, validation
+  - PaymentService: webhook processing, expiration
+  - AuthService: OTP validation, account linking, auto-create
+- Utility functions (formatters, validators)
+- Guards and decorators
+
+Integration Tests (mandatory):
+- API endpoint testing (controller + service + database):
+  - Auth flow (Google, OTP, auto-create)
+  - Registration flow (calculate → create → payment → webhook → confirm)
+  - Payment expiration flow
+  - Admin CRUD operations
+  - Feedback submission
+- Database transaction testing
+- Error response validation
+
+E2E Tests (optional MVP):
+- Critical user journeys:
+  - Participant: event listing → registration → payment → confirmation
+  - Admin: create event → publish → manage participants → complete
+
+17.3 Test Configuration
+
+- Test database: separate PostgreSQL instance atau in-memory (prisma with SQLite for unit tests)
+- Test environment: .env.test with test-specific configuration
+- Mocking: external services (payment gateway, WhatsApp, email) always mocked
+- Fixtures: seed data for consistent test state
+- CI: tests run on PR (GitHub Actions)
+
+17.4 Test Coverage Targets
+
+- Service layer: minimum 80% coverage
+- Controller layer: minimum 70% coverage
+- Critical paths (registration, payment, auth): minimum 90% coverage
+- Overall: minimum 70% coverage
+
+
+------------------------------------------------------------------------
+
+18. FILE & MEDIA ARCHITECTURE
+
+18.1 Supported Media
+
+Event Poster:
+- Formats: JPG, JPEG, PNG, WebP
+- Max size: 5 MB
+- Recommended: 1080 x 1350 px (4:5 ratio)
+- Storage: Supabase Storage public bucket
+- Database: events.poster_url (VARCHAR 500)
+
+Instructor Profile Picture:
+- Formats: JPG, JPEG, PNG, WebP
+- Max size: 2 MB
+- Storage: Supabase Storage public bucket
+- Database: instructors.profile_picture (VARCHAR 500)
+
+User Profile Picture:
+- Formats: JPG, JPEG, PNG, WebP
+- Max size: 2 MB
+- Storage: Supabase Storage public bucket
+- Database: users.profile_picture (VARCHAR 500)
+
+
+18.2 Upload Flow
+
+Frontend:
+1. User selects file (drag & drop atau browse)
+2. Client-side validation: format, size
+3. Show preview (FileReader API)
+4. Upload via multipart/form-data to POST /admin/upload/poster (atau inline with entity creation)
+
+Backend:
+1. Validate file type (mime type check, not just extension)
+2. Validate file size (< 5MB)
+3. Generate unique filename: {entity_type}/{uuid}-{timestamp}.{ext}
+4. Upload to Supabase Storage
+5. Return public URL
+6. Store URL in database field
+
+Image Optimization (optional MVP):
+- Supabase Storage provides image transformation via URL parameters
+- Thumbnail generation: ?width=400&height=500 (for event listing cards)
+- Full size: original URL (for event detail page)
+
+
+------------------------------------------------------------------------
+
+19. DEPLOYMENT ARCHITECTURE
+
+19.1 Development Environment
+
+Developer Machine:
+  |
+  +---- Next.js (localhost:3000)
+  |
+  +---- NestJS (localhost:3001)
+  |
+  +---- Supabase Local (supabase start) atau remote Supabase Development Project
+  |
+  +---- Midtrans Sandbox
+  |
+  +---- Mock WhatsApp/Email (log to console)
+
+
+19.2 Staging Environment (Optional MVP)
+
+Git Repository (GitHub)
+  |
+  v
+GitHub Actions CI/CD
+  |
+  +---- Run tests (Jest)
+  +---- Lint check (ESLint)
+  +---- Type check (TypeScript)
+  |
+  v
+Deploy Frontend → Vercel (preview/staging)
+Deploy Backend → Render (staging service)
+Database → Supabase Staging Project
+
+
+19.3 Production Environment
+
+User (Participant / Admin)
+  |
+  v
+Vercel CDN (Edge Network)
+  |
+  v
+Next.js Application (Vercel)
+  |
+  v
+REST API (/api/v1)
+  |
+  v
+NestJS Application (Render)
+  |
+  +---- PostgreSQL (Supabase)
+  |
+  +---- Object Storage (Supabase Storage)
+  |
+  +---- Midtrans (Production)
+  |
+  +---- WhatsApp Provider
+  |
+  +---- Resend (Email)
+  |
+  +---- Google OAuth
+
+
+19.4 CI/CD Pipeline
+
+Tool: GitHub Actions
+
+On Pull Request:
+1. Checkout code
+2. Install dependencies (yarn install --immutable)
+3. Lint (ESLint)
+4. Type check (tsc --noEmit)
+5. Run unit tests (jest)
+6. Run integration tests (jest with test DB)
+7. Build check (yarn build)
+
+On Merge to main:
+1. All PR checks above
+2. Database migration (prisma migrate deploy) — backend only
+3. Deploy frontend to Vercel (auto-triggered by Vercel GitHub integration)
+4. Deploy backend to Render (auto-triggered by Render GitHub integration)
+
+On Merge to develop:
+1. Deploy to staging (if staging environment exists)
+
+
+19.5 Database Migration Strategy
+
+Tool: Prisma Migrate
+
+Development:
+- prisma migrate dev: create and apply migration
+- prisma db seed: seed development data
+
+Staging/Production:
+- prisma migrate deploy: apply pending migrations (no interactive prompts)
+- Migration files committed to git
+- Never edit applied migrations
+- Breaking changes: create new migration with data transformation
+
+Rollback Strategy:
+- Create reverse migration (Prisma does not auto-rollback)
+- Test rollback migration in staging before applying to production
+- Database backup sebelum migration production
+
+
+19.6 Health Check
+
+Backend health check endpoint:
+- GET /api/v1/health (public, no auth)
+- Response: { success: true, message: "OK", data: { status: "ok", timestamp: "...", uptime: "..." } }
+- Checks: database connection, basic service availability
+- Used by: Render health check, external uptime monitor
+
+External Monitoring:
+- UptimeRobot (free tier): ping /api/v1/health every 5 minutes
+- Also serves as keep-alive untuk Render free tier (prevent cold start)
+
+
+------------------------------------------------------------------------
+
+20. MONITORING AND LOGGING
+
+20.1 Logging Architecture
+
+Library: NestJS built-in Logger (atau Pino for structured JSON logs)
+
+Log Format (structured JSON):
+{
+  "timestamp": "2027-03-15T08:00:00.000Z",
+  "level": "info",
+  "context": "PaymentService",
+  "message": "Payment confirmed",
+  "data": {
+    "registration_id": "uuid",
+    "amount": 150000,
+    "method": "qris"
+  },
+  "request_id": "uuid"
+}
+
+Log Levels:
+- error: application errors, external service failures, unhandled exceptions
+- warn: rate limit hits, slow queries, notification failures, approaching capacity
+- info: registration created/confirmed/expired, payment status changes, admin actions, attendance updates
+- debug: detailed request/response data (disabled in production)
+
+
+20.2 Application Monitoring
+
+MVP monitoring mencatat:
+
+Critical Events:
+- Payment processing errors
+- Webhook failures
+- Authentication errors
+- Database connection errors
+- Background job failures
+
+Operational Events:
+- Payment transactions (all status changes)
+- Registration status changes
+- Attendance updates
+- Notification delivery status
+- Event status changes (publish, complete)
+
+Performance:
+- API response time (via logging interceptor)
+- Slow queries (> 1 second, logged as warning)
+- Background job execution time
+
+
+20.3 Error Tracking
+
+MVP: structured application logs (stdout)
+- Render captures stdout/stderr logs
+- Vercel captures function logs
+- Searchable via provider dashboard
+
+Growth Stage:
+- Sentry (free tier: 5000 errors/month) atau Axiom untuk error tracking
+- Structured log aggregation
+- Error alerting via email/Slack
+
+
+20.4 Uptime Monitoring
+
+Tool: UptimeRobot (free tier)
+- Monitor: GET /health endpoint
+- Interval: 5 minutes
+- Alert: email notification on downtime
+- Dashboard: public status page (optional)
+
+SRD Target: 99.5% uptime (~3.65 jam downtime per bulan)
+
+
+------------------------------------------------------------------------
+
+21. ENVIRONMENT MANAGEMENT
+
+21.1 Environments
+
+- Development: local machine, mock external services
+- Staging: optional, mimic production with test data
+- Production: live environment, real external services
+
+21.2 Environment Variables
+
+Backend (.env):
+
+# Application
+NODE_ENV=development|staging|production
+PORT=3001
+APP_URL=https://ruanasaspace.com
+FRONTEND_URL=https://ruanasaspace.com
+
+# Database
+DATABASE_URL=postgresql://user:pass@host:6543/db?pgbouncer=true
+DIRECT_URL=postgresql://user:pass@host:5432/db
+
+# JWT
+JWT_SECRET=minimum-256-bit-random-string
+JWT_EXPIRY=7d
+
+# Google OAuth
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=xxx
+
+# Payment Gateway (Midtrans)
+MIDTRANS_SERVER_KEY=SB-Mid-server-xxx
+MIDTRANS_CLIENT_KEY=SB-Mid-client-xxx
+MIDTRANS_IS_PRODUCTION=false
+MIDTRANS_WEBHOOK_URL=https://api.ruanasaspace.com/api/v1/payments/webhook
+
+# WhatsApp
+WHATSAPP_PROVIDER=fonnte
+WHATSAPP_API_URL=https://api.fonnte.com
+WHATSAPP_API_KEY=xxx
+WHATSAPP_SENDER_NUMBER=+62xxx
+
+# Email
+EMAIL_PROVIDER=resend
+EMAIL_API_KEY=re_xxx
+EMAIL_FROM_ADDRESS=noreply@ruanasaspace.com
+EMAIL_FROM_NAME=Ruanasa Space
+
+# Storage
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_KEY=xxx
+SUPABASE_STORAGE_BUCKET=public
+
+# CORS
+CORS_ORIGINS=https://ruanasaspace.com,https://www.ruanasaspace.com
+
+Frontend (.env.local):
+
+NEXT_PUBLIC_API_URL=https://api.ruanasaspace.com/api/v1
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+NEXT_PUBLIC_MIDTRANS_CLIENT_KEY=SB-Mid-client-xxx
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_APP_URL=https://ruanasaspace.com
+
+
+21.3 Secrets Management Rules
+
+- Secrets TIDAK boleh dimasukkan ke Git (.gitignore includes .env*)
+- Secrets TIDAK boleh di frontend public environment (hanya NEXT_PUBLIC_* untuk non-sensitive)
+- Secrets TIDAK boleh ditulis langsung di source code
+- Midtrans SERVER key TIDAK di-expose ke frontend
+- JWT_SECRET harus unique per environment
+- Production secrets disimpan di provider dashboard (Vercel Environment Variables, Render Environment Variables)
+
+
+------------------------------------------------------------------------
+
+22. GIT AND DEVELOPMENT WORKFLOW
+
+22.1 Repository Structure
+
+Option A — Monorepo (Recommended untuk MVP):
+ruanasa-space/
+  apps/
+    web/                            # Next.js frontend
+    api/                            # NestJS backend
+  packages/
+    shared/                         # Shared types, validators (Zod schemas)
+  package.json                      # Root package.json (workspaces)
+
+Option B — Separate Repos:
+- ruanasa-space-web (Next.js frontend)
+- ruanasa-space-api (NestJS backend)
+
+Recommendation: Monorepo (Option A) untuk shared types consistency dan simpler development. Tools: Yarn (v4, workspaces, nodeLinker: node-modules) sebagai package manager.
+
+
+22.2 Branch Strategy
+
+- main: production-ready code, auto-deploy to production
+- develop: integration branch, auto-deploy to staging (if exists)
+- feature/*: new feature development
+- fix/*: bug fixes
+- hotfix/*: urgent production fixes (branch from main)
+
+Naming Convention:
+- feature/auth-google-login
+- feature/registration-wizard
+- fix/payment-expiration-slot-release
+- hotfix/webhook-signature-validation
+
+
+22.3 Development Flow
+
+Feature Development:
+1. Create branch from develop: feature/module-name
+2. Develop with iterative commits
+3. Write/update tests
+4. Push branch
+5. Create Pull Request to develop
+6. CI runs (lint, test, build)
+7. Code review
+8. Merge to develop
+9. Test on staging
+10. Merge develop to main (release)
+11. Auto-deploy to production
+
+
+22.4 Commit Convention
+
+Format: type(scope): description
+
+Types: feat, fix, refactor, test, docs, chore, style, perf, ci
+
+Examples:
+- feat(auth): implement Google OAuth login flow
+- feat(registration): add multi-pax registration wizard
+- fix(payment): handle webhook duplicate callback
+- test(pricing): add bundle discount calculation tests
+- chore(deps): update NestJS to v11.1
+
+
+------------------------------------------------------------------------
+
+23. AI-ASSISTED DEVELOPMENT GUIDELINE
+
+Karena development dilakukan dengan bantuan AI coding assistant, berikut panduan yang harus diikuti:
+
+23.1 Task Definition
+
+Setiap development task yang diberikan ke AI harus memiliki:
+- Clear objective (apa yang harus dibuat)
+- Relevant module (modul mana yang diubah)
+- Input (data yang diterima)
+- Output (data yang dihasilkan)
+- Business rules (aturan bisnis yang harus diikuti)
+- API contract (endpoint, request/response sesuai API Spec v1.6)
+- Database schema (tabel dan relasi sesuai ERD v1.6)
+- Acceptance criteria (kriteria selesai)
+- Reference documents (PRD, UFD, SRD section yang relevan)
+
+
+23.2 AI Constraints
+
+AI coding assistant TIDAK boleh mengubah tanpa approval dan update dokumen terkait:
+- Database schema / ERD
+- API contract (endpoint paths, request/response format)
+- Business rules (pricing calculation order, discount stacking)
+- Authentication rules (JWT spec, OTP spec)
+- Payment rules (webhook processing, expiration logic)
+- Data validation rules (field constraints, unique constraints)
+
+AI coding assistant BOLEH:
+- Menentukan internal implementation detail (design patterns, code structure)
+- Memilih utility libraries
+- Mengoptimasi queries
+- Menambahkan error handling yang tidak mengubah API contract
+- Menulis tests
+- Refactor internal code
+
+
+23.3 Code Quality Standards
+
+- TypeScript strict mode enabled
+- ESLint + Prettier configured
+- No any types (use proper typing)
+- All functions documented with JSDoc (at minimum: description, params, returns)
+- Error messages in Bahasa Indonesia (user-facing) dan English (internal logs)
+- Consistent naming: camelCase (variables, functions), PascalCase (classes, types), SCREAMING_SNAKE (constants), snake_case (database columns)
+
+
+------------------------------------------------------------------------
+
+24. MVP DEVELOPMENT PRIORITY
+
+PHASE 1 — FOUNDATION (P0, Week 1-2)
+
+Tasks:
+- Project setup (monorepo, Next.js, NestJS, Prisma, Tailwind, shadcn/ui)
+- Database schema creation (prisma migrate)
+- Database seeding (admin user, sample data)
+- Authentication module (Google OAuth, Email OTP, WhatsApp OTP, auto-create, admin login)
+- JWT implementation (guards, middleware)
+- User profile module (CRUD)
+- Global error handling (exception filters, interceptors)
+- API response transformation
+- CORS configuration
+- Rate limiting setup
+- File upload module (poster, profile picture)
+
+
+PHASE 2 — CORE FEATURES (P0, Week 3-5)
+
+Tasks:
+- Event management (admin CRUD, publish, complete, duplicate)
+- Event template management (admin CRUD)
+- Instructor management (admin CRUD, specialization)
+- Event listing (public, with pricing info)
+- Event detail (public, with instructor, pricing, add-on, capacity)
+- Pricing module (event prices, pricing rules, calculate-price)
+- Add-on module (admin CRUD per event)
+- Registration module (create registration, slot reservation, multi-pax)
+- Participant module (admin list, search, filter)
+- Payment module (create payment, Midtrans integration, webhook handler)
+- Payment expiration job (cron every 5 minutes)
+- Attendance module (admin list, toggle check-in)
+
+
+PHASE 3 — ENGAGEMENT (P1, Week 6-7)
+
+Tasks:
+- Discount module (promo code CRUD, validate, apply)
+- WhatsApp notification (registration confirmation, event reminder H-1)
+- Event reminder job (cron daily 08:00 WIB)
+- Post-event notification job
+- Feedback module (token-based form, admin view)
+- Data export (participant list to Excel/CSV)
+- Admin notification (in-app: new registration, payment success, event almost full)
+- Notification bell with dropdown
+
+
+PHASE 4 — INSIGHT & POLISH (P2, Week 8)
+
+Tasks:
+- Dashboard analytics (summary cards, charts)
+- Detailed analytics (registration trend, revenue, attendance, feedback)
+- UI polish (loading states, empty states, error states)
+- Responsive testing (mobile participant, desktop admin)
+- Security hardening (headers, sanitization)
+- Performance optimization (query optimization, image lazy loading)
+- Testing (unit tests for critical paths, integration tests for API)
+
+
+------------------------------------------------------------------------
+
+25. COST CONTROL STRATEGY
+
+FREE / OPEN SOURCE (no cost):
+- Next.js, TypeScript, Tailwind CSS, shadcn/ui
+- TanStack Query, Zustand, React Hook Form, Zod
+- NestJS, Node.js, Prisma
+- PostgreSQL, Jest, Playwright
+- lucide-react, recharts, date-fns
+- GitHub (public/private repo)
+
+FREE TIER (limited usage):
+- Supabase: database 500 MB + storage 1 GB + auth (not used for auth)
+- Vercel: 100 GB bandwidth/month
+- Render: 750 hours/month (with cold start)
+- Resend: 100 emails/day
+- UptimeRobot: 50 monitors
+
+USAGE-BASED / POTENTIALLY PAID:
+- Payment gateway production (Midtrans: ~0.7% QRIS, ~Rp4000 bank transfer)
+- WhatsApp production messaging (per message fee, varies by provider)
+- Higher storage usage (Supabase paid plan)
+- Higher database usage (Supabase paid plan)
+- Backend without cold start (Render Starter $7/month)
+- Custom domain email (for noreply@ruanasaspace.com)
+
+Estimated MVP Monthly Cost (Production):
+- Hosting: $0 (free tiers)
+- Domain: ~$12/year
+- WhatsApp: variable (per message)
+- Payment gateway: per transaction
+- Email: $0 (free tier, < 100/day)
+- Total fixed: ~$1/month (domain amortized)
+
+
+------------------------------------------------------------------------
+
+26. ARCHITECTURE EVOLUTION
+
+26.1 MVP Stage (Current)
+
+Frontend: Next.js (Vercel)
+Backend: NestJS (Render, single instance)
+Database: PostgreSQL (Supabase free tier)
+Storage: Supabase Storage
+Cache: In-memory only
+Queue: In-process scheduler (@nestjs/schedule)
+Monitoring: Application logs + UptimeRobot
+
+26.2 Growth Stage (100-1000 users)
+
+Frontend: Next.js (Vercel Pro)
+Backend: NestJS (Render Starter, no cold start)
+Database: PostgreSQL (Supabase Pro, connection pooling)
+Storage: Supabase Storage atau Cloudflare R2
+Cache: Redis (Upstash free tier)
+Queue: BullMQ (Redis-backed)
+Monitoring: Sentry + structured log aggregation
+
+26.3 Scale Stage (1000+ users)
+
+Frontend: Next.js (Vercel Enterprise atau self-hosted)
+Backend: API Gateway + multiple NestJS instances (container orchestration)
+Database: PostgreSQL (dedicated, read replicas)
+Storage: Cloudflare R2 atau AWS S3
+Cache: Redis cluster
+Queue: BullMQ with dedicated workers
+Monitoring: Full observability stack (metrics, traces, logs)
+
+Migrasi ke arsitektur yang lebih kompleks hanya dilakukan ketika volume dan kebutuhan operasional membenarkannya.
+
+
+------------------------------------------------------------------------
+
+27. ARCHITECTURE DECISION SUMMARY
+
+Architecture Style: Modular Monolithic
+Frontend: Next.js 15+ (App Router, TypeScript)
+Styling: Tailwind CSS + shadcn/ui
+Client State: TanStack Query + Zustand
+Backend: NestJS 11+ (TypeScript)
+Database: PostgreSQL 15+ (Supabase)
+ORM: Prisma 6+
+Authentication: Custom JWT (passwordless participant, email+password admin)
+API: REST (/api/v1, 79 endpoints)
+Payment: Midtrans (QRIS + Bank Transfer)
+Notification: WhatsApp (provider-agnostic adapter) + In-app (admin)
+Email: Resend
+Storage: Supabase Storage
+Frontend Hosting: Vercel
+Backend Hosting: Render
+Source Control: GitHub
+CI/CD: GitHub Actions
+Testing: Jest + Supertest (+ Playwright optional)
+Monitoring: Application logs + UptimeRobot
+
+
+------------------------------------------------------------------------
+
+28. NEXT DOCUMENT
+
+Development Task Breakdown Document v1.6
+
+Dokumen berikutnya harus memecah Technical Architecture menjadi task development yang detail dan dapat dieksekusi, dengan referensi ke semua dokumen (PRD, UFD, SRD, ERD, UIUX Spec, API Spec, TAD) per task.

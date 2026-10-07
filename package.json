@@ -1,0 +1,28 @@
+{
+  "name": "ruanasa-space",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Ruanasa Space - wellness event management platform",
+  "packageManager": "yarn@4.18.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:web": "yarn workspace @ruanasa/web dev",
+    "dev:api": "yarn workspace @ruanasa/api start:dev",
+    "build:shared": "yarn workspace @ruanasa/shared build",
+    "build": "yarn build:shared && yarn workspace @ruanasa/api build && yarn workspace @ruanasa/web build",
+    "lint": "yarn workspace @ruanasa/web lint && yarn workspace @ruanasa/api lint",
+    "typecheck": "yarn workspaces foreach --all run typecheck",
+    "format": "prettier --write \"apps/*/src/**/*.{ts,tsx}\" \"packages/*/src/**/*.ts\"",
+    "format:check": "prettier --check \"apps/*/src/**/*.{ts,tsx}\" \"packages/*/src/**/*.ts\"",
+    "test": "yarn workspace @ruanasa/api test"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}

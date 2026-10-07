@@ -1,0 +1,2459 @@
+API SPECIFICATION DOCUMENT (API-SPEC)
+
+Ruanasa Space
+
+Version: 1.6 (Updated)
+Platform: Web-Based Responsive Application
+Base URL: /api/v1
+
+------------------------------------------------------------------------
+
+1. API OVERVIEW
+
+API Specification Document mendefinisikan kontrak komunikasi antara frontend application dengan backend system Ruanasa Space.
+
+API mencakup:
+- Authentication & Account
+- User Profile
+- Event Management (Public & Admin)
+- Event Template (Admin)
+- Instructor Management (Admin)
+- Specialization Management (Admin)
+- Registration & Pricing
+- Add-on Management (Admin)
+- Discount Code Management (Admin)
+- Payment Processing
+- Participant Management (Admin)
+- Attendance Management (Admin)
+- Feedback
+- Notification (Admin)
+- Analytics (Admin)
+- Export (Admin)
+
+------------------------------------------------------------------------
+
+2. API STANDARD
+
+2.1 HTTP Methods
+
+- GET: retrieve data (idempotent)
+- POST: create data atau trigger action
+- PUT: full update
+- PATCH: partial update
+- DELETE: soft delete / remove
+
+2.2 Response Format
+
+Success:
+{
+  "success": true,
+  "message": "Success message",
+  "data": { ... }
+}
+
+Success with pagination:
+{
+  "success": true,
+  "message": "Success",
+  "data": [ ... ],
+  "pagination": {
+    "page": 1,
+    "per_page": 20,
+    "total_items": 85
+  }
+}
+
+Error:
+{
+  "success": false,
+  "message": "Human-readable error message",
+  "error_code": "ERROR_CODE",
+  "errors": {
+    "field_name": ["Validation message"]
+  }
+}
+
+2.3 Authentication Header
+
+JWT token dikirim melalui dua mekanisme (backend harus support keduanya):
+1. httpOnly cookie (primary — di-set oleh backend saat login response)
+2. Authorization header: Bearer {jwt_token} (fallback — untuk API testing/mobile)
+
+Prioritas: Cookie dicek terlebih dahulu, jika tidak ada maka cek Bearer header.
+
+2.4 Content Type
+
+Request: application/json (kecuali file upload: multipart/form-data)
+Response: application/json
+
+2.5 Pagination
+
+Default: page=1, per_page=20
+Query params: ?page=1&per_page=20
+
+2.6 Date/Time Format
+
+- Date: YYYY-MM-DD (contoh: 2027-03-15)
+- Time: HH:mm (contoh: 08:00)
+- Timestamp: ISO 8601 (contoh: 2027-03-15T08:00:00+07:00)
+
+------------------------------------------------------------------------
+
+3. AUTHENTICATION API
+
+------------------------------------------------------------------------
+
+3.1 Google Login
+
+POST /auth/google
+
+Deskripsi: Login atau register menggunakan Google OAuth 2.0.
+
+Request Body:
+{
+  "id_token": "string (Google ID token dari frontend)"
+}
+
+Response 200 (existing user):
+{
+  "success": true,
+  "message": "Login berhasil",
+  "data": {
+    "token": "jwt_token",
+    "user": {
+      "id": "uuid",
+      "name": "string",
+      "email": "string",
+      "phone_number": "string",
+      "profile_picture": "string|null",
+      "role": "participant",
+      "auth_provider": "google"
+    },
+    "is_new_user": false
+  }
+}
+
+Response 200 (new user — needs phone number):
+{
+  "success": true,
+  "message": "Akun baru, lengkapi nomor telepon",
+  "data": {
+    "temp_token": "string",
+    "name": "string (dari Google)",
+    "email": "string (dari Google)",
+    "is_new_user": true,
+    "requires_phone": true
+  }
+}
+
+Error 401:
+{
+  "success": false,
+  "message": "Token Google tidak valid",
+  "error_code": "INVALID_GOOGLE_TOKEN"
+}
+
+------------------------------------------------------------------------
+
+3.2 Complete Google Registration
+
+POST /auth/google/complete
+
+Deskripsi: Melengkapi registrasi Google user baru dengan phone number.
+
+Request Body:
+{
+  "temp_token": "string",
+  "phone_number": "string"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "Registrasi berhasil",
+  "data": {
+    "token": "jwt_token",
+    "user": { ... }
+  }
+}
+
+Error 409:
+{
+  "success": false,
+  "message": "Nomor telepon ini sudah terdaftar, silakan login untuk melanjutkan",
+  "error_code": "PHONE_ALREADY_EXISTS"
+}
+
+------------------------------------------------------------------------
+
+3.3 Request Email OTP
+
+POST /auth/email/request-otp
+
+Deskripsi: Kirim OTP 6 digit ke email.
+
+Request Body:
+{
+  "email": "string"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "OTP telah dikirim ke email",
+  "data": {
+    "otp_session_id": "string",
+    "expires_in": 300,
+    "is_existing_user": true
+  }
+}
+
+Error 429:
+{
+  "success": false,
+  "message": "Terlalu banyak permintaan, silakan tunggu 15 menit",
+  "error_code": "OTP_RATE_LIMITED"
+}
+
+------------------------------------------------------------------------
+
+3.4 Verify Email OTP
+
+POST /auth/email/verify-otp
+
+Deskripsi: Verifikasi OTP email. Jika user existing, login. Jika baru, perlu complete profile.
+
+Request Body:
+{
+  "otp_session_id": "string",
+  "otp_code": "string (6 digit)"
+}
+
+Response 200 (existing user):
+{
+  "success": true,
+  "message": "Login berhasil",
+  "data": {
+    "token": "jwt_token",
+    "user": { ... },
+    "is_new_user": false
+  }
+}
+
+Response 200 (new user — needs name and phone):
+{
+  "success": true,
+  "message": "OTP terverifikasi, lengkapi profil",
+  "data": {
+    "temp_token": "string",
+    "email": "string",
+    "is_new_user": true,
+    "requires_profile": true
+  }
+}
+
+Error 400:
+- "Kode OTP salah" / error_code: "OTP_INVALID"
+- "OTP sudah expired" / error_code: "OTP_EXPIRED"
+
+Error 429:
+- "Terlalu banyak percobaan, silakan request OTP baru" / error_code: "OTP_MAX_ATTEMPTS"
+
+------------------------------------------------------------------------
+
+3.5 Complete Email Registration
+
+POST /auth/email/complete
+
+Deskripsi: Melengkapi registrasi user baru yang login via Email OTP.
+
+Request Body:
+{
+  "temp_token": "string",
+  "name": "string",
+  "phone_number": "string"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "Registrasi berhasil",
+  "data": {
+    "token": "jwt_token",
+    "user": { ... }
+  }
+}
+
+Error 409:
+- "Nomor telepon ini sudah terdaftar" / error_code: "PHONE_ALREADY_EXISTS"
+
+------------------------------------------------------------------------
+
+3.6 Request WhatsApp OTP
+
+POST /auth/whatsapp/request-otp
+
+Deskripsi: Kirim OTP 6 digit via WhatsApp.
+
+Request Body:
+{
+  "phone_number": "string"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "OTP telah dikirim via WhatsApp",
+  "data": {
+    "otp_session_id": "string",
+    "expires_in": 300,
+    "is_existing_user": true
+  }
+}
+
+Error 429: same as email OTP.
+
+------------------------------------------------------------------------
+
+3.7 Verify WhatsApp OTP
+
+POST /auth/whatsapp/verify-otp
+
+Deskripsi: Verifikasi OTP WhatsApp.
+
+Request Body:
+{
+  "otp_session_id": "string",
+  "otp_code": "string (6 digit)"
+}
+
+Response 200 (existing user):
+{
+  "success": true,
+  "message": "Login berhasil",
+  "data": {
+    "token": "jwt_token",
+    "user": { ... },
+    "is_new_user": false
+  }
+}
+
+Response 200 (new user — needs name and email):
+{
+  "success": true,
+  "message": "OTP terverifikasi, lengkapi profil",
+  "data": {
+    "temp_token": "string",
+    "phone_number": "string",
+    "is_new_user": true,
+    "requires_profile": true
+  }
+}
+
+Error 400 / 429: same as email OTP.
+
+------------------------------------------------------------------------
+
+3.8 Complete WhatsApp Registration
+
+POST /auth/whatsapp/complete
+
+Deskripsi: Melengkapi registrasi user baru yang login via WhatsApp OTP.
+
+Request Body:
+{
+  "temp_token": "string",
+  "name": "string",
+  "email": "string"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "Registrasi berhasil",
+  "data": {
+    "token": "jwt_token",
+    "user": { ... }
+  }
+}
+
+Error 409:
+- "Email ini sudah terdaftar" / error_code: "EMAIL_ALREADY_EXISTS"
+
+------------------------------------------------------------------------
+
+3.9 Auto Account Creation (Continue Without Login)
+
+POST /auth/auto-create
+
+Deskripsi: Cek phone number (primary) dan email (secondary). Buat akun otomatis jika belum terdaftar. Jika sudah terdaftar, tolak dan minta login.
+
+Request Body:
+{
+  "name": "string",
+  "phone_number": "string",
+  "email": "string"
+}
+
+Response 201 (akun baru dibuat):
+{
+  "success": true,
+  "message": "Akun berhasil dibuat",
+  "data": {
+    "token": "jwt_token",
+    "user": {
+      "id": "uuid",
+      "name": "string",
+      "email": "string",
+      "phone_number": "string",
+      "role": "participant",
+      "auth_provider": "auto_created"
+    },
+    "is_new_user": true
+  }
+}
+
+Error 409 (phone ditemukan):
+{
+  "success": false,
+  "message": "Nomor telepon ini sudah terdaftar, silakan login untuk melanjutkan",
+  "error_code": "PHONE_ALREADY_EXISTS"
+}
+
+Error 409 (email ditemukan):
+{
+  "success": false,
+  "message": "Email ini sudah terdaftar, silakan login untuk melanjutkan",
+  "error_code": "EMAIL_ALREADY_EXISTS"
+}
+
+Validation Error 422:
+- "Format nomor telepon tidak valid" / field: phone_number
+- "Format email tidak valid" / field: email
+- "Nama wajib diisi" / field: name
+
+------------------------------------------------------------------------
+
+3.10 Admin Login
+
+POST /auth/admin/login
+
+Deskripsi: Login admin menggunakan email dan password.
+
+Request Body:
+{
+  "email": "string",
+  "password": "string"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "Login berhasil",
+  "data": {
+    "token": "jwt_token",
+    "user": {
+      "id": "uuid",
+      "name": "string",
+      "email": "string",
+      "role": "admin"
+    }
+  }
+}
+
+Error 401:
+- "Email atau password salah" / error_code: "AUTH_FAILED"
+
+------------------------------------------------------------------------
+
+3.11 Logout
+
+POST /auth/logout
+
+Headers: Authorization: Bearer {token}
+
+Response 200:
+{
+  "success": true,
+  "message": "Logout berhasil"
+}
+
+------------------------------------------------------------------------
+
+4. USER PROFILE API
+
+------------------------------------------------------------------------
+
+4.1 Get Profile
+
+GET /users/profile
+
+Auth: Required (participant)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "string",
+    "email": "string",
+    "phone_number": "string",
+    "profile_picture": "string|null",
+    "auth_provider": "google|email_otp|whatsapp_otp|auto_created",
+    "created_at": "timestamp"
+  }
+}
+
+------------------------------------------------------------------------
+
+4.2 Update Profile
+
+PUT /users/profile
+
+Auth: Required (participant)
+
+Request Body:
+{
+  "name": "string",
+  "email": "string",
+  "phone_number": "string"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "Profil berhasil diperbarui",
+  "data": { ... user object }
+}
+
+Error 409:
+- "Nomor telepon sudah digunakan akun lain" / error_code: "PHONE_ALREADY_EXISTS"
+- "Email sudah digunakan akun lain" / error_code: "EMAIL_ALREADY_EXISTS"
+
+------------------------------------------------------------------------
+
+4.3 Get Event History
+
+GET /users/event-history
+
+Auth: Required (participant)
+
+Query Params: ?page=1&per_page=20
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "event_id": "uuid",
+      "event_name": "string",
+      "activity_type": "string",
+      "date": "date",
+      "location": "string",
+      "attendance_status": "not_checked|present",
+      "registration_status": "confirmed"
+    }
+  ],
+  "pagination": { ... }
+}
+
+------------------------------------------------------------------------
+
+5. EVENT API (PUBLIC)
+
+------------------------------------------------------------------------
+
+5.1 Get Event List
+
+GET /events
+
+Auth: Not required
+
+Query Params: ?page=1&per_page=20&activity_type=yoga
+
+Deskripsi: Menampilkan event berstatus published dan tanggal belum lewat.
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "event_name": "string",
+      "activity_type": "string",
+      "date": "date",
+      "start_time": "time",
+      "location": "string",
+      "poster_url": "string",
+      "current_price": 150000,
+      "original_price": 200000,
+      "is_early_bird": true,
+      "has_bundle_discount": true,
+      "bundle_discount_label": "Daftar 2 orang diskon 10%",
+      "capacity": 30,
+      "registered_count": 25,
+      "available_slots": 5,
+      "status": "published"
+    }
+  ],
+  "pagination": { ... }
+}
+
+------------------------------------------------------------------------
+
+5.2 Get Event Detail
+
+GET /events/{event_id}
+
+Auth: Not required
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "event_name": "string",
+    "activity_type": "string",
+    "date": "date",
+    "start_time": "time",
+    "end_time": "time",
+    "location": "string",
+    "description": "string",
+    "poster_url": "string",
+    "capacity": 30,
+    "registered_count": 25,
+    "available_slots": 5,
+    "status": "published",
+    "instructor": {
+      "id": "uuid",
+      "name": "string",
+      "profile_picture": "string|null",
+      "bio": "string|null",
+      "specializations": ["Vinyasa Yoga", "Hatha Yoga"]
+    },
+    "pricing": {
+      "current_price": 150000,
+      "original_price": 200000,
+      "is_early_bird": true,
+      "early_bird_end_date": "date|null"
+    },
+    "bundle_discounts": [
+      { "minimum_pax": 2, "discount_type": "percentage", "discount_value": 10 },
+      { "minimum_pax": 3, "discount_type": "percentage", "discount_value": 15 }
+    ],
+    "addons": [
+      {
+        "id": "uuid",
+        "name": "string",
+        "description": "string|null",
+        "price": 20000,
+        "available_quantity": 10,
+        "max_purchase_quantity": 3
+      }
+    ]
+  }
+}
+
+Error 404:
+- "Event tidak ditemukan" / error_code: "EVENT_NOT_FOUND"
+
+------------------------------------------------------------------------
+
+6. EVENT API (ADMIN)
+
+------------------------------------------------------------------------
+
+6.1 Get Admin Event List
+
+GET /admin/events
+
+Auth: Required (admin)
+
+Query Params: ?page=1&per_page=20&status=published&search=yoga
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "event_name": "string",
+      "activity_type": "string",
+      "date": "date",
+      "instructor_name": "string",
+      "capacity": 30,
+      "registered_count": 25,
+      "status": "draft|published|completed",
+      "created_at": "timestamp"
+    }
+  ],
+  "pagination": { ... }
+}
+
+------------------------------------------------------------------------
+
+6.2 Get Admin Event Detail
+
+GET /admin/events/{id}
+
+Auth: Required (admin)
+
+Response 200: Full event data termasuk pricing, addons, template info, dan registration summary.
+
+------------------------------------------------------------------------
+
+6.3 Create Event
+
+POST /admin/events
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "event_name": "string (max 150)",
+  "activity_type": "string",
+  "description": "string (max 5000)",
+  "poster_url": "string",
+  "date": "YYYY-MM-DD",
+  "start_time": "HH:mm",
+  "end_time": "HH:mm",
+  "location": "string (max 500)",
+  "instructor_id": "uuid",
+  "capacity": 30,
+  "template_id": "uuid|null"
+}
+
+Response 201:
+{
+  "success": true,
+  "message": "Event berhasil dibuat",
+  "data": { ... event object, status: "draft" }
+}
+
+Validation Errors 422:
+- "Event name wajib diisi"
+- "Tanggal tidak boleh di masa lalu"
+- "End time harus setelah start time"
+- "Instructor tidak ditemukan atau tidak aktif"
+- "Kapasitas minimal 1"
+
+------------------------------------------------------------------------
+
+6.4 Update Event
+
+PUT /admin/events/{id}
+
+Auth: Required (admin)
+
+Request Body: same as create (partial fields allowed).
+
+Rules:
+- Draft: semua field bisa diubah.
+- Published: semua field kecuali activity_type bisa diubah.
+- Completed: tidak bisa diubah.
+
+Error 403:
+- "Event yang sudah selesai tidak dapat diubah" / error_code: "EVENT_COMPLETED"
+
+------------------------------------------------------------------------
+
+6.5 Delete Event
+
+DELETE /admin/events/{id}
+
+Auth: Required (admin)
+
+Rules: Hanya event berstatus draft yang bisa dihapus (soft delete).
+
+Response 200:
+{
+  "success": true,
+  "message": "Event berhasil dihapus"
+}
+
+Error 403:
+- "Hanya event berstatus draft yang bisa dihapus" / error_code: "EVENT_DELETE_NOT_ALLOWED"
+
+------------------------------------------------------------------------
+
+6.6 Publish Event
+
+POST /admin/events/{id}/publish
+
+Auth: Required (admin)
+
+Rules: Hanya draft yang bisa dipublish. Event harus memiliki minimal 1 normal price yang active, serta date, start_time, dan end_time yang sudah terisi (event hasil duplicate harus dilengkapi dulu).
+
+Response 200:
+{
+  "success": true,
+  "message": "Event berhasil dipublikasikan",
+  "data": {
+    "public_url": "string",
+    "qr_code_url": "string"
+  }
+}
+
+Error 400:
+- "Event harus memiliki minimal satu harga normal" / error_code: "MISSING_PRICE"
+- "Tanggal dan waktu event wajib diisi sebelum dipublikasikan" / error_code: "VALIDATION_ERROR"
+
+Error 403:
+- "Hanya event draft yang bisa dipublikasikan" / error_code: "INVALID_STATUS_TRANSITION"
+
+------------------------------------------------------------------------
+
+6.7 Complete Event
+
+POST /admin/events/{id}/complete
+
+Auth: Required (admin)
+
+Rules: Hanya published yang bisa dicomplete. Triggers: kirim post-event notification (asinkron) ke buyer, berisi link feedback per participant yang present. Feedback token sudah dibuat saat payment confirmed.
+
+Response 200:
+{
+  "success": true,
+  "message": "Event ditandai selesai"
+}
+
+Error 403:
+- "Hanya event published yang bisa ditandai selesai" / error_code: "INVALID_STATUS_TRANSITION"
+
+------------------------------------------------------------------------
+
+6.8 Duplicate Event
+
+POST /admin/events/{id}/duplicate
+
+Auth: Required (admin)
+
+Deskripsi: Copy semua data event (termasuk add-on dan pricing config) kecuali date/time, registrations, participants, payments, attendance. Status baru: draft.
+
+Response 201:
+{
+  "success": true,
+  "message": "Event berhasil diduplikasi",
+  "data": { ... new event object, status: "draft", date: null, start_time: null, end_time: null }
+}
+
+------------------------------------------------------------------------
+
+6.9 Get Event Share Info
+
+GET /admin/events/{id}/share
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "public_url": "string",
+    "qr_code_url": "string"
+  }
+}
+
+------------------------------------------------------------------------
+
+6.10 Send Post-Event Notification (Manual)
+
+POST /admin/events/{id}/send-post-event
+
+Auth: Required (admin)
+
+Deskripsi: Manual trigger untuk mengirim post-event notification. Digunakan jika auto-trigger gagal atau admin ingin mengirim ulang.
+
+Rules: Event harus berstatus completed.
+
+Response 200:
+{
+  "success": true,
+  "message": "Post-event notification dikirim"
+}
+
+Error 403:
+- "Event belum completed" / error_code: "INVALID_STATUS_TRANSITION"
+
+------------------------------------------------------------------------
+
+6.11 Upload Poster
+
+POST /admin/upload/poster
+
+Auth: Required (admin)
+
+Request: multipart/form-data
+- file: image file (JPG/JPEG/PNG/WebP, max 5 MB)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "url": "string (CDN URL)"
+  }
+}
+
+Error 400:
+- "Ukuran file terlalu besar, maksimum 5 MB" / error_code: "FILE_TOO_LARGE"
+- "Format file tidak didukung, gunakan JPG, PNG, atau WebP" / error_code: "INVALID_FILE_FORMAT"
+
+------------------------------------------------------------------------
+
+7. EVENT TEMPLATE API (ADMIN)
+
+------------------------------------------------------------------------
+
+7.1 Get Template List
+
+GET /admin/event-templates
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "string",
+      "activity_type": "string",
+      "instructor_name": "string|null",
+      "created_at": "timestamp"
+    }
+  ]
+}
+
+------------------------------------------------------------------------
+
+7.2 Get Template Detail
+
+GET /admin/event-templates/{id}
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "string",
+    "activity_type": "string",
+    "description": "string|null",
+    "instructor_id": "uuid|null",
+    "instructor_name": "string|null",
+    "created_at": "timestamp"
+  }
+}
+
+------------------------------------------------------------------------
+
+7.3 Create Template
+
+POST /admin/event-templates
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "name": "string (max 150)",
+  "activity_type": "string",
+  "description": "string|null (max 5000)",
+  "instructor_id": "uuid|null"
+}
+
+Response 201:
+{
+  "success": true,
+  "message": "Template berhasil dibuat",
+  "data": { ... template object }
+}
+
+------------------------------------------------------------------------
+
+7.4 Update Template
+
+PUT /admin/event-templates/{id}
+
+Auth: Required (admin)
+
+Request Body: same as create.
+
+------------------------------------------------------------------------
+
+7.5 Delete Template
+
+DELETE /admin/event-templates/{id}
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "message": "Template berhasil dihapus"
+}
+
+------------------------------------------------------------------------
+
+8. INSTRUCTOR API (ADMIN)
+
+------------------------------------------------------------------------
+
+8.1 Get Instructor List
+
+GET /admin/instructors
+
+Auth: Required (admin)
+
+Query Params: ?status=active
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "string",
+      "profile_picture": "string|null",
+      "specializations": ["Vinyasa Yoga", "Hatha Yoga"],
+      "status": "active|inactive",
+      "event_count": 5
+    }
+  ]
+}
+
+------------------------------------------------------------------------
+
+8.2 Get Instructor Detail
+
+GET /admin/instructors/{id}
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "name": "string",
+    "profile_picture": "string|null",
+    "bio": "string|null",
+    "contact_information": "string|null",
+    "specializations": [
+      { "id": "uuid", "name": "Vinyasa Yoga" }
+    ],
+    "status": "active",
+    "event_count": 5,
+    "created_at": "timestamp"
+  }
+}
+
+------------------------------------------------------------------------
+
+8.3 Create Instructor
+
+POST /admin/instructors
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "name": "string (max 100)",
+  "profile_picture": "string|null (URL)",
+  "bio": "string|null (max 2000)",
+  "contact_information": "string|null (max 500)",
+  "specialization_ids": ["uuid", "uuid"],
+  "status": "active"
+}
+
+Response 201:
+{
+  "success": true,
+  "message": "Instructor berhasil ditambahkan",
+  "data": { ... instructor object }
+}
+
+------------------------------------------------------------------------
+
+8.4 Update Instructor
+
+PUT /admin/instructors/{id}
+
+Auth: Required (admin)
+
+Request Body: same as create.
+
+------------------------------------------------------------------------
+
+8.5 Delete Instructor
+
+DELETE /admin/instructors/{id}
+
+Auth: Required (admin)
+
+Error 403:
+- "Tidak dapat menghapus instructor yang terhubung dengan event aktif" / error_code: "INSTRUCTOR_HAS_ACTIVE_EVENT"
+
+------------------------------------------------------------------------
+
+8.6 Get Active Instructors (Dropdown)
+
+GET /admin/instructors/active
+
+Auth: Required (admin)
+
+Deskripsi: List ringkas instructor aktif untuk dropdown di form create event.
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "string",
+      "specializations": ["Vinyasa Yoga"]
+    }
+  ]
+}
+
+------------------------------------------------------------------------
+
+9. SPECIALIZATION API (ADMIN)
+
+------------------------------------------------------------------------
+
+9.1 Get Specialization List
+
+GET /admin/specializations
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "string",
+      "instructor_count": 3
+    }
+  ]
+}
+
+------------------------------------------------------------------------
+
+9.2 Create Specialization
+
+POST /admin/specializations
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "name": "string (max 100)"
+}
+
+Response 201:
+{
+  "success": true,
+  "message": "Specialization berhasil ditambahkan",
+  "data": { ... }
+}
+
+Error 409:
+- "Specialization sudah ada" / error_code: "SPECIALIZATION_EXISTS"
+
+------------------------------------------------------------------------
+
+9.3 Update Specialization
+
+PUT /admin/specializations/{id}
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "name": "string (max 100)"
+}
+
+------------------------------------------------------------------------
+
+9.4 Delete Specialization
+
+DELETE /admin/specializations/{id}
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "message": "Specialization berhasil dihapus"
+}
+
+------------------------------------------------------------------------
+
+10. PRICING API (ADMIN)
+
+------------------------------------------------------------------------
+
+10.1 Get Event Prices & Rules
+
+GET /admin/events/{event_id}/pricing
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "prices": [
+      {
+        "id": "uuid",
+        "price_type": "normal",
+        "price": 200000,
+        "start_date": null,
+        "end_date": null,
+        "status": "active"
+      },
+      {
+        "id": "uuid",
+        "price_type": "early_bird",
+        "price": 150000,
+        "start_date": "2027-03-01",
+        "end_date": "2027-03-10",
+        "status": "active"
+      }
+    ],
+    "pricing_rules": [
+      {
+        "id": "uuid",
+        "rule_type": "bundle",
+        "minimum_quantity": 2,
+        "discount_type": "percentage",
+        "discount_value": 10,
+        "status": "active"
+      }
+    ]
+  }
+}
+
+------------------------------------------------------------------------
+
+10.2 Create/Update Event Price
+
+POST /admin/events/{event_id}/prices
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "price_type": "normal|early_bird",
+  "price": 200000,
+  "start_date": "YYYY-MM-DD|null (wajib untuk early_bird)",
+  "end_date": "YYYY-MM-DD|null (wajib untuk early_bird)",
+  "status": "active"
+}
+
+Response 201: price object.
+
+------------------------------------------------------------------------
+
+10.3 Update Event Price
+
+PUT /admin/events/{event_id}/prices/{price_id}
+
+Auth: Required (admin)
+
+------------------------------------------------------------------------
+
+10.4 Delete Event Price
+
+DELETE /admin/events/{event_id}/prices/{price_id}
+
+Auth: Required (admin)
+
+------------------------------------------------------------------------
+
+10.5 Create Pricing Rule
+
+POST /admin/events/{event_id}/pricing-rules
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "rule_type": "bundle",
+  "minimum_quantity": 2,
+  "discount_type": "percentage|fixed_amount",
+  "discount_value": 10,
+  "status": "active"
+}
+
+Response 201: pricing rule object.
+
+Validation:
+- Jika discount_type = percentage: discount_value max 100.
+- minimum_quantity min 2.
+
+------------------------------------------------------------------------
+
+10.6 Update Pricing Rule
+
+PUT /admin/events/{event_id}/pricing-rules/{rule_id}
+
+------------------------------------------------------------------------
+
+10.7 Delete Pricing Rule
+
+DELETE /admin/events/{event_id}/pricing-rules/{rule_id}
+
+------------------------------------------------------------------------
+
+11. ADD-ON API (ADMIN)
+
+------------------------------------------------------------------------
+
+11.1 Get Event Add-ons
+
+GET /admin/events/{event_id}/addons
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "name": "string",
+      "description": "string|null",
+      "price": 20000,
+      "available_quantity": 20,
+      "max_purchase_quantity": 3,
+      "status": "active|inactive"
+    }
+  ]
+}
+
+------------------------------------------------------------------------
+
+11.2 Create Add-on
+
+POST /admin/events/{event_id}/addons
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "name": "string (max 100)",
+  "description": "string|null (max 500)",
+  "price": 20000,
+  "available_quantity": 20,
+  "max_purchase_quantity": 3,
+  "status": "active"
+}
+
+Response 201: addon object.
+
+------------------------------------------------------------------------
+
+11.3 Update Add-on
+
+PUT /admin/events/{event_id}/addons/{addon_id}
+
+------------------------------------------------------------------------
+
+11.4 Delete Add-on
+
+DELETE /admin/events/{event_id}/addons/{addon_id}
+
+------------------------------------------------------------------------
+
+12. DISCOUNT CODE API
+
+------------------------------------------------------------------------
+
+12.1 Get Discount Code List (Admin)
+
+GET /admin/discount-codes
+
+Auth: Required (admin)
+
+Query Params: ?status=active&page=1&per_page=20
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "code": "string",
+      "discount_type": "percentage|fixed_amount",
+      "discount_value": 10,
+      "quota": 50,
+      "used_count": 12,
+      "expiry_date": "date",
+      "status": "active|inactive"
+    }
+  ],
+  "pagination": { ... }
+}
+
+------------------------------------------------------------------------
+
+12.2 Create Discount Code
+
+POST /admin/discount-codes
+
+Auth: Required (admin)
+
+Request Body:
+{
+  "code": "string (max 20, alphanumeric, auto-uppercase)",
+  "discount_type": "percentage|fixed_amount",
+  "discount_value": 10,
+  "quota": 50,
+  "expiry_date": "YYYY-MM-DD",
+  "status": "active"
+}
+
+Response 201: discount code object.
+
+Error 409:
+- "Kode promo ini sudah digunakan" / error_code: "PROMO_CODE_EXISTS"
+
+Validation 422:
+- Jika percentage: discount_value max 100.
+- Expiry date harus di masa depan.
+
+------------------------------------------------------------------------
+
+12.3 Update Discount Code
+
+PUT /admin/discount-codes/{id}
+
+Auth: Required (admin)
+
+------------------------------------------------------------------------
+
+12.4 Validate Promo Code (Public/Participant)
+
+POST /discount-codes/validate
+
+Auth: Required (participant)
+
+Deskripsi: Validasi promo code saat registrasi. Dipanggil saat participant klik "Terapkan".
+
+Request Body:
+{
+  "code": "string"
+}
+
+Response 200 (valid):
+{
+  "success": true,
+  "message": "Kode promo berhasil diterapkan",
+  "data": {
+    "discount_code_id": "uuid",
+    "code": "string",
+    "discount_type": "percentage",
+    "discount_value": 10
+  }
+}
+
+Error 400:
+- "Kode promo tidak valid" / error_code: "INVALID_PROMO"
+- "Kode promo sudah expired" / error_code: "PROMO_EXPIRED"
+- "Kode promo sudah habis" / error_code: "PROMO_QUOTA_EXHAUSTED"
+- "Kode promo tidak aktif" / error_code: "PROMO_INACTIVE"
+
+------------------------------------------------------------------------
+
+13. REGISTRATION & PRICING API
+
+------------------------------------------------------------------------
+
+13.1 Calculate Price
+
+POST /pricing/calculate
+
+Auth: Required (participant)
+
+Deskripsi: Menghitung total harga sebelum registrasi. Dipanggil saat order review step untuk menampilkan breakdown.
+
+Discount Stacking Order:
+1. Early Bird → menentukan price_per_pax
+2. Bundle → percentage: pax_subtotal × value/100; fixed_amount: value × total_pax (hanya pax, tidak termasuk add-on)
+3. Promo Code → applied AFTER bundle discount (dihitung dari subtotal setelah bundle)
+
+Formula: total_payment = (pax_subtotal - bundle_discount - promo_discount) + addon_subtotal
+Note: Promo code tidak berlaku untuk add-on, hanya untuk pax subtotal after bundle.
+
+Request Body:
+{
+  "event_id": "uuid",
+  "total_pax": 3,
+  "addon_selections": [
+    { "addon_id": "uuid", "quantity": 2 }
+  ],
+  "discount_code": "string|null"
+}
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "price_per_pax": 150000,
+    "price_type": "early_bird",
+    "total_pax": 3,
+    "pax_subtotal": 450000,
+    "bundle_discount": {
+      "applied": true,
+      "rule": "3 pax = 15%",
+      "amount": 67500
+    },
+    "addon_details": [
+      {
+        "addon_id": "uuid",
+        "name": "Yoga Mat Rental",
+        "price": 20000,
+        "quantity": 2,
+        "subtotal": 40000
+      }
+    ],
+    "addon_subtotal": 40000,
+    "promo_code_discount": {
+      "applied": true,
+      "code": "WELCOME10",
+      "amount": 38250
+    },
+    "total_discount": 105750,
+    "total_payment": 384250
+  }
+}
+
+------------------------------------------------------------------------
+
+13.2 Create Registration
+
+POST /registrations
+
+Auth: Required (participant)
+
+Deskripsi: Membuat registrasi baru. Slot di-lock saat registrasi dibuat. Payment deadline dimulai (60 menit). Catatan: subtotal = pax_subtotal (tidak termasuk add-on); total_payment = subtotal - discount_amount + total add-on.
+
+Request Body:
+{
+  "event_id": "uuid",
+  "total_pax": 3,
+  "participants": [
+    { "name": "Sarah", "is_buyer": true },
+    { "name": "Budi", "is_buyer": false },
+    { "name": "Rina", "is_buyer": false }
+  ],
+  "addon_selections": [
+    { "addon_id": "uuid", "quantity": 2 }
+  ],
+  "discount_code_id": "uuid|null"
+}
+
+Response 201:
+{
+  "success": true,
+  "message": "Registrasi berhasil dibuat",
+  "data": {
+    "registration_id": "uuid",
+    "event_id": "uuid",
+    "total_pax": 3,
+    "subtotal": 450000,
+    "discount_amount": 105750,
+    "total_payment": 384250,
+    "payment_status": "pending_payment",
+    "registration_status": "pending",
+    "payment_deadline": "timestamp (created_at + 60 min)"
+  }
+}
+
+Error 400:
+- "Event sudah penuh" / error_code: "EVENT_FULL"
+- "Slot tersisa hanya X" / error_code: "INSUFFICIENT_SLOTS"
+- "Add-on tidak tersedia" / error_code: "ADDON_UNAVAILABLE"
+
+Error 409:
+- "Anda sudah terdaftar pada event ini" / error_code: "DUPLICATE_REGISTRATION"
+
+------------------------------------------------------------------------
+
+13.3 Get Registration Detail
+
+GET /registrations/{id}
+
+Auth: Required (participant — owner only)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "event": {
+      "id": "uuid",
+      "event_name": "string",
+      "date": "date",
+      "start_time": "time",
+      "end_time": "time",
+      "location": "string"
+    },
+    "participants": [
+      { "id": "uuid", "name": "string", "is_buyer": true }
+    ],
+    "addons": [
+      { "name": "string", "quantity": 2, "subtotal": 40000 }
+    ],
+    "subtotal": 450000,
+    "discount_amount": 105750,
+    "total_payment": 384250,
+    "payment_status": "pending_payment|paid|expired",
+    "registration_status": "pending|confirmed|expired",
+    "payment_deadline": "timestamp",
+    "payment": {
+      "payment_id": "uuid|null",
+      "payment_method": "qris|bank_transfer|null",
+      "status": "pending_payment|paid|expired|null",
+      "payment_data": { "qr_code_url": "string|null", "va_number": "string|null", "bank_name": "string|null" },
+      "expires_at": "timestamp|null"
+    },
+    "created_at": "timestamp"
+  }
+}
+
+Note: payment object semua field null jika user belum memilih metode pembayaran.
+
+------------------------------------------------------------------------
+
+14. PAYMENT API
+
+------------------------------------------------------------------------
+
+14.1 Create Payment
+
+POST /payments
+
+Auth: Required (participant)
+
+Deskripsi: Inisiasi pembayaran ke payment gateway. Jika registrasi sudah punya payment berstatus pending_payment, transaksi gateway lama dibatalkan dan payment yang sama di-update dengan metode/transaksi baru. Jika sudah paid → ALREADY_PAID. Jika registrasi expired → REGISTRATION_EXPIRED.
+
+Request Body:
+{
+  "registration_id": "uuid",
+  "payment_method": "qris|bank_transfer"
+}
+
+Response 201:
+{
+  "success": true,
+  "message": "Transaksi pembayaran dibuat",
+  "data": {
+    "payment_id": "uuid",
+    "registration_id": "uuid",
+    "payment_method": "qris",
+    "amount": 384250,
+    "transaction_id": "string (dari payment gateway)",
+    "payment_data": {
+      "qr_code_url": "string (untuk QRIS)",
+      "va_number": "string|null (untuk bank transfer)",
+      "bank_name": "string|null (untuk bank transfer)"
+    },
+    "expires_at": "timestamp",
+    "status": "pending_payment"
+  }
+}
+
+Error 400:
+- "Registrasi sudah expired" / error_code: "REGISTRATION_EXPIRED"
+- "Registrasi sudah dibayar" / error_code: "ALREADY_PAID"
+
+------------------------------------------------------------------------
+
+14.2 Get Payment Status
+
+GET /payments/{payment_id}/status
+
+Auth: Required (participant)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "payment_id": "uuid",
+    "status": "pending_payment|paid|expired",
+    "paid_at": "timestamp|null",
+    "expires_at": "timestamp"
+  }
+}
+
+------------------------------------------------------------------------
+
+14.3 Payment Webhook (Payment Gateway Callback)
+
+POST /payments/webhook
+
+Auth: Signature validation (bukan JWT — sesuai format payment gateway provider)
+
+Deskripsi: Endpoint yang dipanggil oleh payment gateway saat pembayaran berhasil.
+
+Server-side actions (dalam satu database transaction):
+1. Validasi callback signature.
+2. Cari payment via payments.transaction_id (= order_id) dan verifikasi amount. Jika order_id tidak ditemukan (mis. transaksi lama yang sudah diganti metode) → catat log warning, balas 200, skip processing.
+3. Idempotency check: jika payment sudah paid → return 200 OK, skip processing.
+4. Jika registrasi sudah expired → jangan proses, catat log critical, balas 200.
+5. Update payments.status -> paid, payments.paid_at -> now.
+6. Update registrations.payment_status -> paid dan registrations.registration_status -> confirmed.
+7. Buat attendance records (not_checked) untuk setiap participant.
+8. Buat baris feedback (token unik) untuk setiap participant.
+9. Kirim WhatsApp notification (registration confirmation) ke buyer.
+10. Kirim admin notification (admin_payment_success).
+11. Cek kapasitas event, kirim admin notification (admin_event_almost_full) jika sisa <= 10%.
+
+Response 200: { "status": "ok" }
+
+------------------------------------------------------------------------
+
+14.4 Manual Check Payment (Admin)
+
+POST /admin/payments/{payment_id}/check
+
+Auth: Required (admin)
+
+Deskripsi: Trigger manual check status ke payment gateway jika callback gagal diterima.
+
+Response 200:
+{
+  "success": true,
+  "message": "Status pembayaran diperbarui",
+  "data": {
+    "payment_id": "uuid",
+    "status": "pending_payment|paid|expired"
+  }
+}
+
+------------------------------------------------------------------------
+
+14.5 Get Event Payments (Admin)
+
+GET /admin/events/{event_id}/payments
+
+Auth: Required (admin)
+
+Query: ?page=1&per_page=20&payment_status=pending_payment|paid|expired
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "payment_id": "uuid|null",
+      "registration_id": "uuid",
+      "booking_owner": "string",
+      "total_pax": 3,
+      "total_payment": 384250,
+      "payment_method": "qris|bank_transfer|null",
+      "payment_status": "pending_payment|paid|expired",
+      "payment_deadline": "timestamp",
+      "paid_at": "timestamp|null"
+    }
+  ],
+  "pagination": { "page": 1, "per_page": 20, "total_items": 45 }
+}
+
+------------------------------------------------------------------------
+
+15. PARTICIPANT API (ADMIN)
+
+------------------------------------------------------------------------
+
+15.1 Get Participant List
+
+GET /admin/events/{event_id}/participants
+
+Auth: Required (admin)
+
+Query Params:
+- ?page=1&per_page=20
+- &search=sarah (cari nama, email, phone)
+- &payment_status=paid
+- &registration_status=confirmed
+- &attendance_status=present
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "participant_id": "uuid",
+      "attendance_id": "uuid|null (null jika registrasi belum confirmed)",
+      "participant_name": "string",
+      "is_buyer": true,
+      "booking_owner": "string",
+      "email": "string",
+      "phone_number": "string",
+      "payment_status": "pending_payment|paid|expired",
+      "registration_status": "pending|confirmed|expired",
+      "attendance_status": "not_checked|present",
+      "addons": ["Yoga Mat Rental x2"],
+      "total_payment": 384250,
+      "registration_id": "uuid"
+    }
+  ],
+  "pagination": { ... },
+  "summary": {
+    "total_participants": 25,
+    "confirmed": 20,
+    "pending": 3,
+    "expired": 2
+  }
+}
+
+------------------------------------------------------------------------
+
+16. ATTENDANCE API (ADMIN)
+
+------------------------------------------------------------------------
+
+16.1 Get Attendance List
+
+GET /admin/events/{event_id}/attendance
+
+Auth: Required (admin)
+
+Query Params: ?search=sarah&status=not_checked
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "total_confirmed": 20,
+      "present": 15,
+      "not_checked": 5,
+      "attendance_rate": 75.0
+    },
+    "participants": [
+      {
+        "attendance_id": "uuid",
+        "participant_id": "uuid",
+        "participant_name": "string",
+        "attendance_status": "not_checked|present",
+        "checked_at": "timestamp|null"
+      }
+    ]
+  }
+}
+
+Note: Hanya menampilkan participant yang registration_status = confirmed.
+
+------------------------------------------------------------------------
+
+16.2 Update Attendance
+
+PATCH /admin/attendance/{id}
+
+Auth: Required (admin)
+
+Deskripsi: Update attendance status berdasarkan attendance record ID.
+
+Request Body:
+{
+  "status": "present"
+}
+
+Response 200:
+{
+  "success": true,
+  "message": "Attendance berhasil diperbarui",
+  "data": {
+    "id": "uuid (attendance record id)",
+    "participant_id": "uuid",
+    "status": "present",
+    "checked_at": "timestamp"
+  }
+}
+
+Error 400:
+- "Participant belum dikonfirmasi" / error_code: "REGISTRATION_NOT_CONFIRMED"
+Error 404:
+- "Attendance record tidak ditemukan" / error_code: "ATTENDANCE_NOT_FOUND"
+
+------------------------------------------------------------------------
+
+17. FEEDBACK API
+
+------------------------------------------------------------------------
+
+17.1 Get Feedback Form (via Token)
+
+GET /feedback/{token}
+
+Auth: Not required (akses via unique link)
+
+Response 200 (can submit):
+{
+  "success": true,
+  "data": {
+    "event_name": "string",
+    "participant_name": "string",
+    "can_submit": true,
+    "already_submitted": false
+  }
+}
+
+Response 200 (not attended):
+{
+  "success": true,
+  "data": {
+    "can_submit": false,
+    "reason": "not_attended",
+    "message": "Feedback hanya tersedia untuk peserta yang hadir"
+  }
+}
+
+Response 200 (already submitted):
+{
+  "success": true,
+  "data": {
+    "can_submit": false,
+    "reason": "already_submitted",
+    "message": "Anda sudah mengisi feedback untuk event ini"
+  }
+}
+
+Error 404:
+- "Link feedback tidak valid" / error_code: "INVALID_FEEDBACK_TOKEN"
+
+------------------------------------------------------------------------
+
+17.2 Submit Feedback
+
+POST /feedback/{token}
+
+Auth: Not required
+
+Request Body:
+{
+  "rating": "integer|null (1-5, optional)",
+  "comment": "string|null (max 2000)",
+  "suggestion": "string|null (max 2000)"
+}
+
+Note: Minimal salah satu field (rating, comment, atau suggestion) harus diisi. Rating opsional. already_submitted = (submitted_at IS NOT NULL).
+
+Response 201:
+{
+  "success": true,
+  "message": "Terima kasih atas feedback Anda"
+}
+
+Validation Error 422:
+- "Rating harus antara 1-5" / error_code: "INVALID_RATING" (jika rating diisi tapi di luar range)
+- "Minimal satu field harus diisi" / error_code: "EMPTY_FEEDBACK"
+
+Error 403:
+- "Feedback hanya tersedia untuk peserta yang hadir" / error_code: "NOT_ATTENDED"
+- "Anda sudah mengisi feedback" / error_code: "ALREADY_SUBMITTED"
+
+------------------------------------------------------------------------
+
+17.3 Get Event Feedback (Admin)
+
+GET /admin/events/{event_id}/feedback
+
+Auth: Required (admin)
+
+Note: Hanya feedback dengan submitted_at IS NOT NULL yang masuk summary dan list. average_rating dihitung dari baris yang rating-nya tidak NULL.
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "average_rating": 4.5,
+      "total_feedback": 18,
+      "rating_distribution": {
+        "1": 0, "2": 1, "3": 2, "4": 5, "5": 10
+      }
+    },
+    "feedback": [
+      {
+        "participant_name": "string",
+        "rating": "integer|null",
+        "comment": "string|null",
+        "suggestion": "string|null",
+        "submitted_at": "timestamp"
+      }
+    ]
+  }
+}
+
+------------------------------------------------------------------------
+
+18. NOTIFICATION API (ADMIN)
+
+------------------------------------------------------------------------
+
+18.1 Get Admin Notifications
+
+GET /admin/notifications
+
+Auth: Required (admin)
+
+Query Params: ?page=1&per_page=20
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "unread_count": 5,
+    "notifications": [
+      {
+        "id": "uuid",
+        "type": "admin_new_registration|admin_payment_success|admin_event_almost_full",
+        "message": "string",
+        "event_id": "uuid",
+        "is_read": false,
+        "created_at": "timestamp"
+      }
+    ]
+  },
+  "pagination": { ... }
+}
+
+------------------------------------------------------------------------
+
+18.1.1 Get Unread Count
+
+GET /admin/notifications/unread-count
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "unread_count": 5
+  }
+}
+
+------------------------------------------------------------------------
+
+18.2 Mark Notification as Read
+
+PATCH /admin/notifications/{id}/read
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "message": "Notifikasi ditandai dibaca"
+}
+
+------------------------------------------------------------------------
+
+18.3 Mark All as Read
+
+POST /admin/notifications/read-all
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "message": "Semua notifikasi ditandai dibaca"
+}
+
+------------------------------------------------------------------------
+
+18.4 Get WhatsApp Notification Status (Admin Monitoring)
+
+GET /admin/events/{event_id}/notification-status
+
+Auth: Required (admin)
+
+Deskripsi: Monitoring status pengiriman WhatsApp notification per event.
+
+Response 200:
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "type": "registration_confirmation|event_reminder|post_event",
+      "recipient_name": "string",
+      "status": "pending|sent|failed",
+      "sent_at": "timestamp|null",
+      "created_at": "timestamp"
+    }
+  ]
+}
+
+------------------------------------------------------------------------
+
+19. ANALYTICS API (ADMIN)
+
+------------------------------------------------------------------------
+
+19.1 Get Dashboard Summary
+
+GET /admin/dashboard
+
+Auth: Required (admin)
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "upcoming_events": 3,
+    "completed_events": 12,
+    "total_participants": 450,
+    "total_revenue": 67500000,
+    "average_attendance_rate": 87.5,
+    "average_feedback_rating": 4.3,
+    "recent_notifications": [ ... top 5 ]
+  }
+}
+
+------------------------------------------------------------------------
+
+19.2 Get Analytics Detail
+
+GET /admin/analytics
+
+Auth: Required (admin)
+
+Query Params: ?date_from=2027-01-01&date_to=2027-03-31
+
+Response 200:
+{
+  "success": true,
+  "data": {
+    "events": {
+      "total": 15,
+      "by_status": { "draft": 2, "published": 3, "completed": 10 },
+      "by_activity_type": { "Yoga": 10, "Meditation": 3, "Breathwork": 2 }
+    },
+    "registrations": {
+      "total_participants": 450,
+      "confirmed": 420,
+      "pending": 10,
+      "expired": 20,
+      "trend": [
+        { "period": "2027-01", "count": 120 },
+        { "period": "2027-02", "count": 150 },
+        { "period": "2027-03", "count": 180 }
+      ]
+    },
+    "revenue": {
+      "total": 67500000,
+      "outstanding": 1500000,
+      "per_event": [
+        { "event_name": "string", "revenue": 5000000 }
+      ]
+    },
+    "attendance": {
+      "average_rate": 87.5,
+      "per_event": [
+        { "event_name": "string", "rate": 90.0 }
+      ]
+    },
+    "feedback": {
+      "average_rating": 4.3,
+      "distribution": { "1": 5, "2": 10, "3": 30, "4": 80, "5": 120 },
+      "per_event": [
+        { "event_name": "string", "average_rating": 4.5 }
+      ]
+    }
+  }
+}
+
+------------------------------------------------------------------------
+
+20. EXPORT API (ADMIN)
+
+------------------------------------------------------------------------
+
+20.1 Export Participant Data
+
+GET /admin/events/{event_id}/participants/export
+
+Auth: Required (admin)
+
+Query Params: ?format=xlsx|csv
+
+Response: Binary file download
+- xlsx: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+- csv: text/csv
+
+Exported Columns:
+- Participant Name
+- Booking Owner
+- Email
+- Phone Number
+- Payment Status
+- Registration Status
+- Attendance Status
+- Add-on
+- Total Payment
+
+------------------------------------------------------------------------
+
+21. SECURITY REQUIREMENT
+
+21.1 Authentication & Authorization
+
+- JWT token: HS256, expiration 7 hari (sliding), delivered via httpOnly cookie + Bearer header support.
+- Admin: email + password (bcrypt 12 rounds).
+- Participant: passwordless (Google OAuth, OTP, auto-create).
+- Role-based access: admin endpoints (/admin/*) hanya bisa diakses role = admin.
+- Resource ownership: participant hanya bisa GET registrasi miliknya sendiri.
+- Feedback token: unique per participant per event, token di-generate saat payment confirmed, akses tanpa login.
+
+21.2 OTP Security
+
+- 6 digit, hashed sebelum disimpan.
+- Expired: 5 menit.
+- Max attempts: 5 per session.
+- Rate limit: 3 request per 15 menit per phone/email.
+
+21.3 API Security
+
+- HTTPS (SSL/TLS) wajib.
+- Input validation & sanitization semua endpoint.
+- Parameterized queries (prevent SQL injection).
+- XSS protection.
+- CORS: hanya domain frontend yang diizinkan.
+- Rate limiting:
+  - Auth endpoints: 10 req/menit per IP.
+  - Public event list: 60 req/menit per IP.
+  - Registration: 5 req/menit per user.
+  - Auto-create account: 5 req/menit per IP.
+
+21.4 Payment Security
+
+- Webhook signature validation.
+- Idempotency (mencegah double processing callback).
+- Transaction ID disimpan sebagai referensi.
+
+------------------------------------------------------------------------
+
+22. ERROR CODE REFERENCE
+
+AUTH_FAILED              Email atau password salah
+INVALID_GOOGLE_TOKEN     Token Google tidak valid
+OTP_INVALID              Kode OTP salah
+OTP_EXPIRED              OTP sudah expired
+OTP_MAX_ATTEMPTS         Terlalu banyak percobaan OTP
+OTP_RATE_LIMITED          Terlalu banyak request OTP
+PHONE_ALREADY_EXISTS     Nomor telepon sudah terdaftar
+EMAIL_ALREADY_EXISTS     Email sudah terdaftar
+UNAUTHORIZED             Token tidak valid atau expired
+FORBIDDEN                Tidak memiliki akses
+
+EVENT_NOT_FOUND          Event tidak ditemukan
+EVENT_DELETE_NOT_ALLOWED Hanya draft yang bisa dihapus
+INVALID_STATUS_TRANSITION Transisi status tidak valid
+EVENT_COMPLETED          Event sudah selesai, tidak bisa diubah
+MISSING_PRICE            Event belum memiliki harga
+
+EVENT_FULL               Event sudah penuh
+INSUFFICIENT_SLOTS       Slot tersisa tidak cukup
+DUPLICATE_REGISTRATION   Sudah terdaftar di event ini
+ADDON_UNAVAILABLE        Add-on tidak tersedia
+
+REGISTRATION_EXPIRED     Registrasi sudah expired
+ALREADY_PAID             Registrasi sudah dibayar
+PAYMENT_GATEWAY_ERROR    Gagal memproses pembayaran
+REGISTRATION_NOT_CONFIRMED Participant belum dikonfirmasi
+
+INVALID_PROMO            Kode promo tidak valid
+PROMO_EXPIRED            Kode promo sudah expired
+PROMO_QUOTA_EXHAUSTED    Kode promo sudah habis
+PROMO_INACTIVE           Kode promo tidak aktif
+PROMO_CODE_EXISTS        Kode promo sudah ada
+
+INVALID_FEEDBACK_TOKEN   Link feedback tidak valid
+NOT_ATTENDED             Peserta tidak hadir
+ALREADY_SUBMITTED        Feedback sudah disubmit
+INVALID_RATING           Rating harus antara 1-5
+EMPTY_FEEDBACK           Minimal satu field feedback harus diisi
+ATTENDANCE_NOT_FOUND     Attendance record tidak ditemukan
+
+INSTRUCTOR_HAS_ACTIVE_EVENT  Instructor terhubung event aktif
+SPECIALIZATION_EXISTS    Specialization sudah ada
+
+VALIDATION_ERROR         Input tidak valid
+FILE_TOO_LARGE           Ukuran file melebihi batas
+INVALID_FILE_FORMAT      Format file tidak didukung
+INTERNAL_ERROR           Kesalahan server
+RATE_LIMITED              Terlalu banyak request
+
+------------------------------------------------------------------------
+
+23. WEBHOOK & SCHEDULED JOB REFERENCE
+
+23.1 Payment Webhook
+
+Endpoint: POST /payments/webhook
+Trigger: Payment gateway callback saat pembayaran berhasil.
+Actions: update payment + registration status, create attendance records, send WhatsApp + admin notifications, check event capacity.
+
+23.2 Payment Expiration Job
+
+Schedule: */5 * * * * (setiap 5 menit)
+Logic: SELECT registrations WHERE registration_status = 'pending' AND payment_deadline < NOW().
+Actions:
+1. Set registration_status → 'expired', payment_status → 'expired'. Registrasi TIDAK di-soft-delete (deleted_at tetap NULL).
+2. Return event slots (recalculate capacity).
+3. Return add-on available_quantity.
+4. Return discount code used_count (jika discount_code_id not null).
+
+23.3 Event Reminder Job
+
+Schedule: 0 1 * * * (setiap hari pukul 08:00 WIB = 01:00 UTC)
+Logic: SELECT events WHERE status = 'published' AND date = CURRENT_DATE + 1.
+Actions: Send WhatsApp reminder ke semua buyer dengan registration_status = confirmed. Phone number diambil dari users.phone_number via JOIN registrations.buyer_user_id.
+
+23.4 Post Event Notification
+
+Trigger: Otomatis saat event di-complete (asinkron); job harian hanya catch-up untuk event completed dengan post_event_sent = false; admin bisa trigger manual via POST /admin/events/{id}/send-post-event.
+Actions:
+1. Feedback tokens sudah di-generate saat payment confirmed. Post-event hanya mengirim link feedback.
+2. Satu pesan WA ke setiap buyer confirmed, berisi link feedback untuk setiap participant miliknya yang attendance = present. Phone number diambil dari users.phone_number via JOIN registrations.buyer_user_id.
+3. Set events.post_event_sent = true setelah selesai.
+
+------------------------------------------------------------------------
+
+24. ENDPOINT SUMMARY
+
+Total: 79 endpoints
+
+Authentication (11):
+POST /auth/google
+POST /auth/google/complete
+POST /auth/email/request-otp
+POST /auth/email/verify-otp
+POST /auth/email/complete
+POST /auth/whatsapp/request-otp
+POST /auth/whatsapp/verify-otp
+POST /auth/whatsapp/complete
+POST /auth/auto-create
+POST /auth/admin/login
+POST /auth/logout
+
+User Profile (3):
+GET  /users/profile
+PUT  /users/profile
+GET  /users/event-history
+
+Event Public (2):
+GET  /events
+GET  /events/{event_id}
+
+Event Admin (10):
+GET  /admin/events
+GET  /admin/events/{id}
+POST /admin/events
+PUT  /admin/events/{id}
+DELETE /admin/events/{id}
+POST /admin/events/{id}/publish
+POST /admin/events/{id}/complete
+POST /admin/events/{id}/duplicate
+GET  /admin/events/{id}/share
+POST /admin/events/{id}/send-post-event
+
+Event Template (5):
+GET  /admin/event-templates
+GET  /admin/event-templates/{id}
+POST /admin/event-templates
+PUT  /admin/event-templates/{id}
+DELETE /admin/event-templates/{id}
+
+Instructor (6):
+GET  /admin/instructors
+GET  /admin/instructors/{id}
+POST /admin/instructors
+PUT  /admin/instructors/{id}
+DELETE /admin/instructors/{id}
+GET  /admin/instructors/active
+
+Specialization (4):
+GET  /admin/specializations
+POST /admin/specializations
+PUT  /admin/specializations/{id}
+DELETE /admin/specializations/{id}
+
+Pricing (7):
+GET  /admin/events/{event_id}/pricing
+POST /admin/events/{event_id}/prices
+PUT  /admin/events/{event_id}/prices/{price_id}
+DELETE /admin/events/{event_id}/prices/{price_id}
+POST /admin/events/{event_id}/pricing-rules
+PUT  /admin/events/{event_id}/pricing-rules/{rule_id}
+DELETE /admin/events/{event_id}/pricing-rules/{rule_id}
+
+Add-on (4):
+GET  /admin/events/{event_id}/addons
+POST /admin/events/{event_id}/addons
+PUT  /admin/events/{event_id}/addons/{addon_id}
+DELETE /admin/events/{event_id}/addons/{addon_id}
+
+Discount Code (4):
+GET  /admin/discount-codes
+POST /admin/discount-codes
+PUT  /admin/discount-codes/{id}
+POST /discount-codes/validate
+
+Registration (3):
+POST /pricing/calculate
+POST /registrations
+GET  /registrations/{id}
+
+Payment (5):
+POST /payments
+GET  /payments/{payment_id}/status
+POST /payments/webhook
+POST /admin/payments/{payment_id}/check
+GET  /admin/events/{event_id}/payments
+
+Participant (1):
+GET  /admin/events/{event_id}/participants
+
+Attendance (2):
+GET  /admin/events/{event_id}/attendance
+PATCH /admin/attendance/{id}
+
+Feedback (3):
+GET  /feedback/{token}
+POST /feedback/{token}
+GET  /admin/events/{event_id}/feedback
+
+Notification (5):
+GET  /admin/notifications
+GET  /admin/notifications/unread-count
+PATCH /admin/notifications/{id}/read
+POST /admin/notifications/read-all
+GET  /admin/events/{event_id}/notification-status
+
+Analytics (2):
+GET  /admin/dashboard
+GET  /admin/analytics
+
+Export (1):
+GET  /admin/events/{event_id}/participants/export
+
+Upload (1):
+POST /admin/upload/poster
+
+------------------------------------------------------------------------
+
+25. NEXT DOCUMENT
+
+Technical Architecture Document v1.6

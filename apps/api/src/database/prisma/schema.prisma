@@ -1,0 +1,524 @@
+// Ruanasa Space — database schema (ERD v1.6).
+//
+// Konvensi: tabel snake_case plural, kolom snake_case (@map), index idx_{table}_{column}.
+// Tipe TIMESTAMP ERD diimplementasikan sebagai timestamptz(6) agar perbandingan dengan NOW()
+// (expiration job) tidak bergantung pada timezone session. Nilai tetap UTC.
+//
+// Tidak dapat dinyatakan di Prisma, ada di migrasi raw SQL (20261006000100_constraints_and_partial_indexes):
+//   - partial unique index registrations (event_id, buyer_user_id) WHERE deleted_at IS NULL AND registration_status <> 'expired'
+//   - CHECK constraint (MIN/MAX, percentage <= 100, used_count <= quota, rating 1-5, early bird wajib punya periode)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------- Enums
+
+enum UserRole {
+  admin
+  participant
+
+  @@map("user_role")
+}
+
+enum AuthProvider {
+  google
+  email_otp
+  whatsapp_otp
+  auto_created
+
+  @@map("auth_provider")
+}
+
+enum EventStatus {
+  draft
+  published
+  completed
+
+  @@map("event_status")
+}
+
+/// Dipakai instructors, event_prices, event_pricing_rules, addons, discount_codes.
+enum ActiveStatus {
+  active
+  inactive
+
+  @@map("active_status")
+}
+
+enum RegistrationStatus {
+  pending
+  confirmed
+  expired
+
+  @@map("registration_status")
+}
+
+/// Dipakai registrations.payment_status dan payments.status (harus selalu sinkron).
+enum PaymentStatus {
+  pending_payment
+  paid
+  expired
+
+  @@map("payment_status")
+}
+
+enum PaymentMethod {
+  qris
+  bank_transfer
+
+  @@map("payment_method")
+}
+
+enum PriceType {
+  normal
+  early_bird
+
+  @@map("price_type")
+}
+
+enum PricingRuleType {
+  bundle
+
+  @@map("pricing_rule_type")
+}
+
+/// Dipakai event_pricing_rules dan discount_codes.
+enum DiscountType {
+  percentage
+  fixed_amount
+
+  @@map("discount_type")
+}
+
+enum AttendanceStatus {
+  not_checked
+  present
+
+  @@map("attendance_status")
+}
+
+enum NotificationType {
+  registration_confirmation
+  event_reminder
+  post_event
+  admin_new_registration
+  admin_payment_success
+  admin_event_almost_full
+
+  @@map("notification_type")
+}
+
+enum NotificationChannel {
+  whatsapp
+  in_app
+
+  @@map("notification_channel")
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+
+  @@map("notification_status")
+}
+
+// ---------------------------------------------------------------- 3. users
+
+model User {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String       @db.VarChar(100)
+  phoneNumber    String       @unique(map: "idx_users_phone_number") @map("phone_number") @db.VarChar(20)
+  email          String       @unique(map: "idx_users_email") @db.VarChar(255)
+  role           UserRole     @default(participant)
+  authProvider   AuthProvider @map("auth_provider")
+  /// Hanya diisi untuk admin.
+  passwordHash   String?      @map("password_hash") @db.VarChar(255)
+  profilePicture String?      @map("profile_picture") @db.VarChar(500)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  registrations Registration[]
+  participants  Participant[]
+  notifications Notification[]
+
+  @@index([role], map: "idx_users_role")
+  @@index([authProvider], map: "idx_users_auth_provider")
+  @@index([deletedAt], map: "idx_users_deleted_at")
+  @@map("users")
+}
+
+// ---------------------------------------------------------------- 4. events
+
+model Event {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateId    String?     @map("template_id") @db.Uuid
+  instructorId  String      @map("instructor_id") @db.Uuid
+  eventName     String      @map("event_name") @db.VarChar(150)
+  activityType  String      @map("activity_type") @db.VarChar(50)
+  /// Maks 5000 karakter (validasi di aplikasi).
+  description   String      @db.Text
+  posterUrl     String      @map("poster_url") @db.VarChar(500)
+  /// Nullable: wajib terisi saat publish (validasi service), boleh NULL pada draft hasil duplicate.
+  date          DateTime?   @db.Date
+  startTime     DateTime?   @map("start_time") @db.Time(0)
+  endTime       DateTime?   @map("end_time") @db.Time(0)
+  location      String      @db.VarChar(500)
+  capacity      Int
+  status        EventStatus @default(draft)
+  completedAt   DateTime?   @map("completed_at") @db.Timestamptz(6)
+  postEventSent Boolean     @default(false) @map("post_event_sent")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  template      EventTemplate?     @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  instructor    Instructor         @relation(fields: [instructorId], references: [id])
+  registrations Registration[]
+  prices        EventPrice[]
+  pricingRules  EventPricingRule[]
+  addons        Addon[]
+  attendance    Attendance[]
+  feedback      Feedback[]
+  notifications Notification[]
+
+  @@index([status], map: "idx_events_status")
+  @@index([date], map: "idx_events_date")
+  @@index([instructorId], map: "idx_events_instructor_id")
+  @@index([templateId], map: "idx_events_template_id")
+  @@index([deletedAt], map: "idx_events_deleted_at")
+  @@map("events")
+}
+
+// ---------------------------------------------------------------- 5. instructors
+
+model Instructor {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String       @db.VarChar(100)
+  profilePicture     String?      @map("profile_picture") @db.VarChar(500)
+  /// Maks 2000 karakter (validasi di aplikasi).
+  bio                String?      @db.Text
+  contactInformation String?      @map("contact_information") @db.VarChar(500)
+  status             ActiveStatus @default(active)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  events          Event[]
+  templates       EventTemplate[]
+  specializations InstructorSpecialization[]
+
+  @@index([status], map: "idx_instructors_status")
+  @@map("instructors")
+}
+
+// ---------------------------------------------------------------- 6. specializations
+
+model Specialization {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique(map: "idx_specializations_name") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  instructors InstructorSpecialization[]
+
+  @@map("specializations")
+}
+
+// ---------------------------------------------------------------- 7. instructor_specialization_mapping
+
+model InstructorSpecialization {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instructorId     String @map("instructor_id") @db.Uuid
+  specializationId String @map("specialization_id") @db.Uuid
+
+  instructor     Instructor     @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  specialization Specialization @relation(fields: [specializationId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, specializationId], map: "idx_instructor_specialization_mapping_pair")
+  @@map("instructor_specialization_mapping")
+}
+
+// ---------------------------------------------------------------- 8. event_templates
+
+model EventTemplate {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @db.VarChar(150)
+  activityType String   @map("activity_type") @db.VarChar(50)
+  /// Maks 5000 karakter (validasi di aplikasi).
+  description  String?  @db.Text
+  instructorId String?  @map("instructor_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  instructor Instructor? @relation(fields: [instructorId], references: [id])
+  events     Event[]
+
+  @@map("event_templates")
+}
+
+// ---------------------------------------------------------------- 9. registrations
+
+model Registration {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId            String             @map("event_id") @db.Uuid
+  buyerUserId        String             @map("buyer_user_id") @db.Uuid
+  totalPax           Int                @map("total_pax")
+  /// pax_subtotal: harga per pax x total_pax sebelum diskon, TIDAK termasuk add-on (Rupiah).
+  subtotal           Int
+  /// bundle discount + promo discount.
+  discountAmount     Int                @default(0) @map("discount_amount")
+  /// subtotal - discount_amount + total add-on, minimum 0.
+  totalPayment       Int                @map("total_payment")
+  discountCodeId     String?            @map("discount_code_id") @db.Uuid
+  paymentStatus      PaymentStatus      @default(pending_payment) @map("payment_status")
+  registrationStatus RegistrationStatus @default(pending) @map("registration_status")
+  /// created_at + 60 menit, dihitung oleh service.
+  paymentDeadline    DateTime           @map("payment_deadline") @db.Timestamptz(6)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  event         Event               @relation(fields: [eventId], references: [id])
+  buyer         User                @relation(fields: [buyerUserId], references: [id])
+  discountCode  DiscountCode?       @relation(fields: [discountCodeId], references: [id])
+  participants  Participant[]
+  payment       Payment?
+  addons        RegistrationAddon[]
+  notifications Notification[]
+
+  // UNIQUE parsial (event_id, buyer_user_id) ada di migrasi raw SQL.
+  @@index([eventId], map: "idx_registrations_event_id")
+  @@index([buyerUserId], map: "idx_registrations_buyer_user_id")
+  @@index([paymentStatus], map: "idx_registrations_payment_status")
+  @@index([registrationStatus], map: "idx_registrations_registration_status")
+  @@index([paymentDeadline], map: "idx_registrations_payment_deadline")
+  @@index([discountCodeId], map: "idx_registrations_discount_code_id")
+  @@index([deletedAt], map: "idx_registrations_deleted_at")
+  @@map("registrations")
+}
+
+// ---------------------------------------------------------------- 10. participants
+
+model Participant {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registrationId String   @map("registration_id") @db.Uuid
+  /// NULL untuk peserta tambahan.
+  userId         String?  @map("user_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  isBuyer        Boolean  @default(false) @map("is_buyer")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+  /// Secara bisnis 1:1 per event; UNIQUE (event_id, participant_id) ada di tabel attendance/feedback.
+  /// Dimodelkan sebagai list karena Prisma menolak 1:1 tanpa unique tunggal pada participant_id.
+  attendance   Attendance[]
+  feedback     Feedback[]
+
+  @@index([registrationId], map: "idx_participants_registration_id")
+  @@index([userId], map: "idx_participants_user_id")
+  @@map("participants")
+}
+
+// ---------------------------------------------------------------- 11. payments
+
+model Payment {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registrationId String        @unique(map: "idx_payments_registration_id") @map("registration_id") @db.Uuid
+  paymentMethod  PaymentMethod @map("payment_method")
+  /// order_id Midtrans: {registration_id}-{unix_ts}.
+  transactionId  String?       @map("transaction_id") @db.VarChar(255)
+  amount         Int
+  status         PaymentStatus @default(pending_payment)
+  paidAt         DateTime?     @map("paid_at") @db.Timestamptz(6)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  registration Registration @relation(fields: [registrationId], references: [id])
+
+  @@index([transactionId], map: "idx_payments_transaction_id")
+  @@index([status], map: "idx_payments_status")
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------- 12. event_prices
+
+model EventPrice {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String       @map("event_id") @db.Uuid
+  priceType PriceType    @map("price_type")
+  price     Int
+  /// Wajib untuk early_bird (CHECK di migrasi raw SQL).
+  startDate DateTime?    @map("start_date") @db.Date
+  endDate   DateTime?    @map("end_date") @db.Date
+  status    ActiveStatus @default(active)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId], map: "idx_event_prices_event_id")
+  @@index([priceType], map: "idx_event_prices_price_type")
+  @@index([status], map: "idx_event_prices_status")
+  @@map("event_prices")
+}
+
+// ---------------------------------------------------------------- 13. event_pricing_rules
+
+model EventPricingRule {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId         String          @map("event_id") @db.Uuid
+  ruleType        PricingRuleType @map("rule_type")
+  minimumQuantity Int             @map("minimum_quantity")
+  discountType    DiscountType    @map("discount_type")
+  discountValue   Int             @map("discount_value")
+  status          ActiveStatus    @default(active)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, ruleType, minimumQuantity], map: "idx_event_pricing_rules_event_id_rule_type_minimum_quantity")
+  @@index([eventId], map: "idx_event_pricing_rules_event_id")
+  @@index([status], map: "idx_event_pricing_rules_status")
+  @@map("event_pricing_rules")
+}
+
+// ---------------------------------------------------------------- 14. addons
+
+model Addon {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId             String       @map("event_id") @db.Uuid
+  name                String       @db.VarChar(100)
+  description         String?      @db.VarChar(500)
+  price               Int
+  availableQuantity   Int          @map("available_quantity")
+  maxPurchaseQuantity Int          @map("max_purchase_quantity")
+  status              ActiveStatus @default(active)
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  event         Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registrations RegistrationAddon[]
+
+  @@index([eventId], map: "idx_addons_event_id")
+  @@index([status], map: "idx_addons_status")
+  @@map("addons")
+}
+
+// ---------------------------------------------------------------- 15. registration_addons
+
+model RegistrationAddon {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  registrationId String @map("registration_id") @db.Uuid
+  addonId        String @map("addon_id") @db.Uuid
+  quantity       Int
+  /// price x quantity.
+  subtotal       Int
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  addon        Addon        @relation(fields: [addonId], references: [id])
+
+  @@unique([registrationId, addonId], map: "idx_registration_addons_registration_id_addon_id")
+  @@index([registrationId], map: "idx_registration_addons_registration_id")
+  @@index([addonId], map: "idx_registration_addons_addon_id")
+  @@map("registration_addons")
+}
+
+// ---------------------------------------------------------------- 16. discount_codes
+
+model DiscountCode {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Alphanumeric, case-insensitive: disimpan uppercase oleh service.
+  code          String       @unique(map: "idx_discount_codes_code") @db.VarChar(20)
+  discountType  DiscountType @map("discount_type")
+  discountValue Int          @map("discount_value")
+  quota         Int
+  usedCount     Int          @default(0) @map("used_count")
+  expiryDate    DateTime     @map("expiry_date") @db.Date
+  status        ActiveStatus @default(active)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  registrations Registration[]
+
+  @@index([status], map: "idx_discount_codes_status")
+  @@index([expiryDate], map: "idx_discount_codes_expiry_date")
+  @@map("discount_codes")
+}
+
+// ---------------------------------------------------------------- 17. attendance
+
+model Attendance {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId       String           @map("event_id") @db.Uuid
+  participantId String           @map("participant_id") @db.Uuid
+  status        AttendanceStatus @default(not_checked)
+  checkedAt     DateTime?        @map("checked_at") @db.Timestamptz(6)
+
+  event       Event       @relation(fields: [eventId], references: [id])
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, participantId], map: "idx_attendance_event_id_participant_id")
+  @@index([eventId], map: "idx_attendance_event_id")
+  @@index([status], map: "idx_attendance_status")
+  @@map("attendance")
+}
+
+// ---------------------------------------------------------------- 18. feedback
+
+model Feedback {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId       String    @map("event_id") @db.Uuid
+  participantId String    @map("participant_id") @db.Uuid
+  token         String    @unique(map: "idx_feedback_token") @db.VarChar(64)
+  /// 1-5, nullable (feedback boleh hanya comment/suggestion). CHECK di migrasi raw SQL.
+  rating        Int?
+  /// Maks 2000 karakter (validasi di aplikasi).
+  comment       String?   @db.Text
+  suggestion    String?   @db.Text
+  /// NULL = belum submit. Summary/analytics hanya menghitung baris dengan submitted_at NOT NULL.
+  submittedAt   DateTime? @map("submitted_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  event       Event       @relation(fields: [eventId], references: [id])
+  participant Participant @relation(fields: [participantId], references: [id])
+
+  @@unique([eventId, participantId], map: "idx_feedback_event_id_participant_id")
+  @@index([eventId], map: "idx_feedback_event_id")
+  @@map("feedback")
+}
+
+// ---------------------------------------------------------------- 19. notifications
+
+model Notification {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String              @map("user_id") @db.Uuid
+  eventId        String?             @map("event_id") @db.Uuid
+  registrationId String?             @map("registration_id") @db.Uuid
+  type           NotificationType
+  channel        NotificationChannel
+  message        String              @db.Text
+  status         NotificationStatus  @default(pending)
+  sentAt         DateTime?           @map("sent_at") @db.Timestamptz(6)
+  isRead         Boolean             @default(false) @map("is_read")
+  readAt         DateTime?           @map("read_at") @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user         User          @relation(fields: [userId], references: [id])
+  event        Event?        @relation(fields: [eventId], references: [id])
+  registration Registration? @relation(fields: [registrationId], references: [id])
+
+  @@index([userId], map: "idx_notifications_user_id")
+  @@index([eventId], map: "idx_notifications_event_id")
+  @@index([registrationId], map: "idx_notifications_registration_id")
+  @@index([type], map: "idx_notifications_type")
+  @@index([channel], map: "idx_notifications_channel")
+  @@index([status], map: "idx_notifications_status")
+  @@index([isRead], map: "idx_notifications_is_read")
+  @@map("notifications")
+}

@@ -1,0 +1,1128 @@
+AI DEVELOPMENT CONTEXT GUIDE v1.3
+
+Ruanasa Space
+
+Panduan Lengkap untuk AI Coding Assistant dalam Pengembangan Ruanasa Space
+
+
+========================================================================
+1. DOCUMENT OVERVIEW
+========================================================================
+
+Dokumen ini adalah panduan operasional utama yang diberikan kepada AI coding assistant sebelum memulai development Ruanasa Space. Berbeda dari dokumen spesifikasi (PRD, TAD, API Spec, dll.) yang mendefinisikan "apa yang harus dibangun", dokumen ini mendefinisikan "bagaimana AI harus bekerja" — mulai dari role definition, workflow, coding standard, hingga constraint yang tidak boleh dilanggar.
+
+1.1 Tujuan
+
+- Memberikan konteks lengkap kepada AI agar dapat mengerjakan task secara mandiri.
+- Memastikan implementasi sesuai requirement dari semua dokumen spesifikasi.
+- Menjaga konsistensi architecture, code style, dan naming convention.
+- Menstandarkan frontend, backend, database, dan testing approach.
+- Mengurangi kesalahan dan hallucination AI dengan memberikan constraint yang jelas.
+- Menjadi single document yang di-load di awal setiap session AI development.
+
+1.2 Cara Menggunakan Dokumen Ini
+
+AI coding assistant WAJIB membaca dokumen ini di awal setiap development session. Dokumen ini menjadi "system prompt tambahan" yang memberikan project context, rules, dan workflow. Setelah membaca dokumen ini, AI mengerjakan task berdasarkan DTBD v1.6 dan merujuk dokumen spesifikasi sesuai field REFERENCE di setiap task.
+
+1.3 Reference Documents
+
+Semua dokumen berikut sudah final dan menjadi source of truth:
+
+| No | Dokumen                          | Versi | Fungsi                              |
+|----|----------------------------------|-------|-------------------------------------|
+| 1  | PRD (Product Requirement)        | v1.5  | Business requirement                |
+| 2  | UFD (User Flow Document)         | v1.5  | User journey & interaction flow     |
+| 3  | SRD (System Requirement)         | v1.5  | System-level rules & validation     |
+| 4  | ERD (Database Schema)            | v1.6  | Database structure (17 tabel)       |
+| 5  | UIUX Specification               | v1.5  | Interface design & design tokens    |
+| 6  | API Specification                | v1.6  | API contract                        |
+| 7  | TAD (Technical Architecture)     | v1.6  | Architecture & technology stack     |
+| 8  | DTBD (Dev Task Breakdown)        | v1.6  | Execution blueprint (68 tasks)      |
+| 9  | Stitch AI Design Brief           | v1.1  | Design system & UI design reference |
+| 10 | AI Dev Context Guide             | v1.3  | Full development rules              |
+
+
+========================================================================
+2. AI ROLE DEFINITION
+========================================================================
+
+AI berperan sebagai 4 role sekaligus dalam satu session:
+
+2.1 Senior Full Stack Engineer
+
+- Implement frontend (Next.js) dan backend (NestJS).
+- Menulis code production-quality, bukan prototype.
+- Mengikuti semua coding standard dan naming convention.
+- Menggunakan TypeScript strict mode tanpa exception.
+
+2.2 Software Architect
+
+- Menjaga modular monolith architecture sesuai TAD v1.6.
+- Memastikan separation of concern: controller → service → repository.
+- TIDAK membuat architecture baru, pattern baru, atau abstraction layer di luar spesifikasi.
+- TIDAK mengubah module structure tanpa approval.
+
+2.3 QA Engineer
+
+- Menulis unit test untuk setiap business logic.
+- Menulis integration test untuk setiap API endpoint.
+- Menulis edge case test (invalid input, expired payment, capacity full, invalid promo).
+- Memastikan semua test passing sebelum task dianggap selesai.
+
+2.4 Code Reviewer (Self-Review)
+
+- Setelah implementasi, review sendiri terhadap:
+  - Architecture compliance (modular, maintainable, separation of concern).
+  - Security compliance (authentication, authorization, validation).
+  - Performance (query efficiency, duplicate process avoidance).
+  - Maintainability (naming, documentation, reusability).
+
+
+========================================================================
+3. PROJECT CONTEXT
+========================================================================
+
+3.1 Product
+
+- Nama: Ruanasa Space
+- Tipe: Web-based responsive wellness event management platform
+- Fokus MVP: Yoga Class sebagai aktivitas utama
+- Bukan: marketplace aktivitas, social media, atau community platform
+
+3.2 User Roles
+
+Participant:
+- Discover event, registrasi, pembayaran, feedback, profil & history.
+- Akses via mobile browser (mobile-first responsive).
+- Login: passwordless (Google OAuth, Email OTP, WhatsApp OTP, Continue Without Login).
+- Semua peserta PASTI memiliki akun (tidak ada guest tanpa akun).
+
+Admin:
+- Event management, instructor, pricing, participant, payment, attendance, analytics.
+- Akses via desktop browser (desktop-first dashboard).
+- Login: email + password (bcrypt 12 rounds).
+
+Penting — User vs Participant:
+- User = orang yang memiliki akun dan melakukan transaksi (buyer).
+- Participant = orang yang hadir dalam event.
+- Satu User bisa mendaftarkan beberapa Participant (multi-pax).
+- Contoh: Sarah (User/buyer) mendaftar 3 pax → Sarah adalah User sekaligus Participant pertama, dua lainnya hanya punya data nama.
+
+3.3 Identifikasi Utama
+
+- Phone number adalah PRIMARY identifier (UNIQUE di database).
+- Email adalah SECONDARY identifier (UNIQUE di database).
+- Sistem mengecek phone number terlebih dahulu, baru email.
+
+3.4 Key Business Rules
+
+- Tidak ada cancellation/refund di MVP.
+- Tidak ada guest tanpa akun — continue without login tetap membuat akun.
+- Payment expiration: 60 menit setelah registrasi dibuat (payment deadline = registration created_at + 60 menit). Payment record dibuat saat user memilih metode pembayaran.
+- Registrasi expired tidak di-soft-delete dan tidak memblokir registrasi baru (unique parsial: WHERE deleted_at IS NULL AND registration_status <> 'expired').
+- Payment dapat diganti metode selama pending; order_id Midtrans = {registration_id}-{unix_ts}.
+- Webhook untuk registrasi expired tidak boleh mengonfirmasi (log critical, balas 200).
+- Discount stacking order: 1) Early Bird → 2) Bundle (% × pax_subtotal ATAU fixed × total_pax) → 3) Promo Code (setelah bundle, tidak termasuk add-on).
+- Pricing calculation HANYA dilakukan di backend — frontend hanya menampilkan hasil API.
+- Slot counting: SUM(participants) WHERE registration_status IN ('pending', 'confirmed').
+- Concurrent booking: database-level locking (SELECT FOR UPDATE).
+- Attendance record dibuat saat payment confirmed, BUKAN saat registration.
+- Event date, start_time, end_time boleh kosong pada draft hasil duplicate, wajib terisi sebelum publish.
+- Feedback hanya bisa diisi oleh participant dengan status "present".
+- Feedback: baris dibuat saat payment confirmed; "sudah submit" = submitted_at NOT NULL; rating opsional (minimal salah satu field terisi).
+
+
+========================================================================
+4. TECHNOLOGY STACK
+========================================================================
+
+4.1 Frontend
+
+| Komponen              | Teknologi                         |
+|-----------------------|-----------------------------------|
+| Framework             | Next.js 15+ (App Router)          |
+| Language              | TypeScript (strict mode)          |
+| Styling               | Tailwind CSS 3+                   |
+| UI Components         | shadcn/ui (Radix UI primitives)   |
+| Design Reference      | Stitch AI design system           |
+| State (API)           | TanStack Query (React Query) v5   |
+| State (Client)        | Zustand                           |
+| Form                  | React Hook Form v7+               |
+| Validation            | Zod                               |
+| Icons                 | lucide-react                      |
+| Charts                | recharts                          |
+| Date                  | date-fns                          |
+| QR Code               | qrcode.react                      |
+| Toast                 | sonner                            |
+
+4.2 Backend
+
+| Komponen              | Teknologi                         |
+|-----------------------|-----------------------------------|
+| Framework             | NestJS 11+                        |
+| Runtime               | Node.js 22 LTS                    |
+| Language              | TypeScript (strict mode)          |
+| ORM                   | Prisma ORM 6+                     |
+| Authentication        | Custom JWT (HS256, 7-day sliding) |
+| Password Hashing      | bcryptjs (12 rounds)              |
+| Validation            | class-validator + Zod             |
+
+4.3 Database & Storage
+
+| Komponen              | Teknologi                         |
+|-----------------------|-----------------------------------|
+| Database              | PostgreSQL 15+ (Supabase)         |
+| Connection Pooling    | PgBouncer (Supabase built-in)     |
+| File Storage          | Supabase Storage (public bucket)  |
+| Tables                | 17 tabel sesuai ERD v1.6          |
+| Primary Keys          | UUID (gen_random_uuid())          |
+| Soft Delete           | deleted_at TIMESTAMP NULLABLE     |
+
+4.4 External Services
+
+| Komponen              | Teknologi                         |
+|-----------------------|-----------------------------------|
+| Payment Gateway       | Midtrans (QRIS + Bank Transfer)   |
+| WhatsApp Provider     | Fonnte / Wablas / Cloud API       |
+| Email Provider        | Resend                            |
+| Google OAuth          | Google OAuth 2.0                  |
+
+4.5 Hosting
+
+| Komponen              | Teknologi        | Tier       |
+|-----------------------|------------------|------------|
+| Frontend              | Vercel           | Free Tier  |
+| Backend               | Render           | Free Tier  |
+| Database              | Supabase         | Free Tier  |
+| Domain                | ruanasaspace.com | Production |
+
+
+========================================================================
+5. SOURCE OF TRUTH HIERARCHY
+========================================================================
+
+Ketika ada konflik antar dokumen, prioritas mengikuti urutan berikut:
+
+| Prioritas | Dokumen            | Scope                          |
+|-----------|--------------------|---------------------------------|
+| 1 (Highest)| PRD v1.5          | Business requirement & rules   |
+| 2         | SRD v1.5           | System requirement & validation |
+| 3         | ERD v1.6           | Database structure & constraint |
+| 4         | API Spec v1.6      | API contract & response format |
+| 5         | UIUX Spec v1.5     | Interface design & tokens      |
+| 6         | TAD v1.6           | Architecture & tech decisions  |
+| 7         | DTBD v1.6          | Execution order & task detail  |
+
+Contoh resolusi konflik:
+- Jika ERD mengatakan field bertipe VARCHAR(100) tetapi API Spec tidak menyebutkan max length → ikuti ERD (prioritas lebih tinggi).
+- Jika TAD mengatakan menggunakan library X tetapi PRD business rule lebih baik dilakukan tanpa library → ikuti PRD.
+- Jika angka endpoint/contoh di dokumen lain berbeda, ikuti API Spec.
+
+
+========================================================================
+6. AI DEVELOPMENT WORKFLOW
+========================================================================
+
+6.1 Per-Task Workflow
+
+Setiap task di DTBD v1.6 dikerjakan dengan workflow ini:
+
+STEP 1 — Requirement Analysis:
+  AI WAJIB membaca dan memahami:
+  - Task ID, Objective, dan Acceptance Criteria di DTBD.
+  - Semua dokumen di field REFERENCE (baca section spesifik, bukan seluruh dokumen).
+  - Dependency — pastikan semua dependency task sudah selesai.
+  - Input dan Expected Output.
+
+STEP 2 — Implementation Planning:
+  AI menjelaskan sebelum coding:
+  - File yang akan dibuat (path lengkap).
+  - File yang akan dimodifikasi.
+  - Database impact (migration? seed update?).
+  - API impact (endpoint baru? response berubah?).
+  - Potential risk atau edge case.
+
+STEP 3 — Implementation:
+  AI menulis code sesuai:
+  - Coding standard di Section 8.
+  - Naming convention di Section 9.
+  - Architecture pattern di Section 10.
+  - Design reference di Section 11 (untuk frontend task).
+
+STEP 4 — Testing:
+  AI menulis test sesuai:
+  - Testing standard di Section 13.
+  - Minimal: unit test untuk business logic, integration test untuk API endpoint.
+
+STEP 5 — Validation:
+  AI menjalankan validation checklist (Section 7) dan melaporkan hasil.
+
+STEP 6 — Completion Report:
+  AI melaporkan menggunakan format di Section 14.
+
+6.2 Per-Session Startup
+
+Di awal setiap development session, AI WAJIB:
+1. Load dokumen ini (AI Development Context Guide).
+2. Identifikasi task yang akan dikerjakan (dari DTBD v1.6).
+3. Baca reference documents yang relevan untuk task tersebut.
+4. Konfirmasi pemahaman sebelum mulai coding.
+
+6.3 Multi-Task dalam Satu Session
+
+Jika mengerjakan lebih dari satu task:
+- Kerjakan satu task sampai selesai sebelum pindah ke task berikutnya.
+- Jangan mengerjakan task secara paralel. Boleh bergantian antar track (backend/frontend) sesuai DTBD Section 7.1, tetapi hanya satu task aktif pada satu waktu.
+- Pastikan dependency terpenuhi secara sequential.
+
+
+========================================================================
+7. VALIDATION CHECKLIST (WAJIB PER TASK)
+========================================================================
+
+Setiap task selesai, AI WAJIB menjalankan checklist ini:
+
+[ ] ERD Aligned — Schema, kolom, tipe data, dan constraint sesuai ERD v1.6.
+[ ] API Aligned — Endpoint, method, request/response format sesuai API Spec v1.6.
+[ ] Business Rule Fulfilled — Semua aturan bisnis sesuai PRD v1.5.
+[ ] Error Handling — Semua error case di API Spec tercakup.
+[ ] Security Validated — Auth guard, role guard, input validation terpasang.
+[ ] TypeScript Strict — Tidak ada `any`, tidak ada implicit types.
+[ ] Test Written — Unit test dan integration test tersedia dan passing.
+[ ] Design Aligned — (Frontend only) Sesuai Stitch AI reference dan UIUX Spec v1.5.
+
+Jika ada item yang TIDAK terpenuhi, AI WAJIB melaporkan alasannya dan TIDAK menandai task sebagai selesai.
+
+
+========================================================================
+8. CODE STYLE STANDARD
+========================================================================
+
+8.1 TypeScript Rules
+
+- Strict mode enabled (tsconfig: strict: true).
+- NO `any` type — gunakan proper typing.
+- NO implicit types — semua function harus memiliki return type.
+- Async/await wajib — hindari callback nesting dan raw Promise chains.
+- Import order: external packages → internal/absolute → relative imports.
+- Semua function didokumentasikan dengan JSDoc (minimal: description, @param, @returns).
+
+8.2 API Response Format
+
+Semua API response WAJIB menggunakan format standar ini:
+
+Success Response:
+{
+  "success": true,
+  "message": "Success message",
+  "data": { ... }
+}
+
+Success with Pagination:
+{
+  "success": true,
+  "message": "Success",
+  "data": [ ... ],
+  "pagination": {
+    "page": 1,
+    "per_page": 10,
+    "total_items": 100
+  }
+}
+
+Error Response:
+{
+  "success": false,
+  "message": "Human-readable error message",
+  "error_code": "ERROR_CODE",
+  "errors": {
+    "field_name": ["Validation message"]
+  }
+}
+
+8.3 Date & Time
+
+- Database: semua tanggal disimpan dalam UTC.
+- UI display: ditampilkan dalam WIB (Asia/Jakarta, UTC+7).
+- Format display Indonesia: "Sabtu, 15 Maret 2027" (date-fns dengan locale ID).
+- Time format: "09:00 - 11:00 WIB".
+
+8.4 Primary Keys
+
+- Semua tabel menggunakan UUID sebagai primary key.
+- Generated by: gen_random_uuid() di PostgreSQL.
+- Type di Prisma: String @id @default(uuid()).
+
+8.5 Soft Delete
+
+- Kolom: deleted_at (TIMESTAMP, NULLABLE).
+- Tabel dengan soft delete: users, events, registrations.
+- SEMUA query harus filter WHERE deleted_at IS NULL kecuali secara eksplisit membutuhkan data yang dihapus.
+- Tidak ada hard delete pada tabel yang memiliki soft delete.
+
+8.6 Error Messages
+
+- User-facing error: Bahasa Indonesia.
+  Contoh: "Nomor telepon ini sudah terdaftar."
+- Internal logs: English.
+  Contoh: "Duplicate phone number detected for user creation."
+
+8.7 Code Documentation
+
+- Semua function: JSDoc (description, @param, @returns).
+- Complex business logic: inline comment explaining "why", bukan "what".
+- Module-level: brief description di atas setiap module file.
+
+
+========================================================================
+9. NAMING CONVENTION
+========================================================================
+
+9.1 Backend (NestJS)
+
+File naming:
+  {module-name}.module.ts
+  {module-name}.controller.ts
+  {module-name}.service.ts
+  {module-name}.repository.ts
+  {action}-{entity}.dto.ts          → contoh: create-event.dto.ts
+  {name}.guard.ts                   → contoh: jwt-auth.guard.ts
+  {name}.filter.ts                  → contoh: http-exception.filter.ts
+  {name}.interceptor.ts             → contoh: transform.interceptor.ts
+
+Variable & function naming:
+  camelCase                         → contoh: calculateTotalPrice()
+
+Class naming:
+  PascalCase                        → contoh: EventService
+
+Constants:
+  SCREAMING_SNAKE_CASE              → contoh: MAX_OTP_ATTEMPTS
+
+9.2 Frontend (Next.js)
+
+File naming:
+  Component       : PascalCase.tsx  → contoh: EventCard.tsx
+  Hook            : use{Name}.ts    → contoh: useEventDetail.ts
+  Service         : {name}Service.ts→ contoh: eventService.ts
+  Store           : {name}Store.ts  → contoh: authStore.ts
+  Type            : {name}.ts       → contoh: event.ts (di folder types/)
+  Page            : page.tsx        → (Next.js App Router convention)
+  Layout          : layout.tsx
+  Zod schema      : {name}.schema.ts
+
+Variable naming: camelCase
+Component naming: PascalCase
+Type/Interface naming: PascalCase (tanpa prefix I)
+
+9.3 Database
+
+  Table name      : snake_case plural   → contoh: event_prices
+  Column name     : snake_case          → contoh: buyer_user_id
+  Index name      : idx_{table}_{column}→ contoh: idx_users_phone_number
+  Enum values     : snake_case          → contoh: early_bird, bank_transfer
+
+9.4 Git
+
+Branch naming:
+  feature/{module}-{feature}       → contoh: feature/auth-google-login
+  fix/{module}-{description}       → contoh: fix/payment-expiration-slot-release
+  hotfix/{description}             → contoh: hotfix/webhook-signature-validation
+
+Commit format:
+  {type}({scope}): {description}
+  Types: feat, fix, refactor, test, docs, chore, style, perf, ci
+  Contoh: feat(auth): implement Google OAuth login flow
+
+9.5 API Endpoint
+
+  Base path: /api/v1
+  Resource naming: plural noun, lowercase
+  Contoh:
+    GET    /api/v1/events
+    GET    /api/v1/events/:id
+    POST   /api/v1/admin/events
+    PUT    /api/v1/admin/events/:id
+    DELETE /api/v1/admin/events/:id
+
+
+========================================================================
+10. ARCHITECTURE RULES
+========================================================================
+
+10.1 Modular Monolith
+
+Ruanasa Space menggunakan modular monolith architecture. Artinya:
+- Frontend dan backend adalah dua aplikasi terpisah yang berkomunikasi via REST API.
+- Backend diorganisasi per module (auth, events, registrations, payments, dll.).
+- Setiap module memiliki: controller, service, repository, dto.
+- Tidak ada direct database access dari frontend.
+- Tidak ada microservices pada MVP.
+
+10.2 Backend Layer Architecture
+
+Controller Layer:
+- Receive HTTP request.
+- Validate request DTO (class-validator + Zod).
+- Apply authentication guard (JWT).
+- Apply authorization guard (Roles).
+- Delegate ke service layer.
+- Return standardized API response.
+- TIDAK mengandung business logic.
+
+Service Layer:
+- Business logic implementation.
+- Pricing calculation engine.
+- Registration logic (slot reservation, discount stacking).
+- Payment processing orchestration.
+- Notification triggering.
+- Transaction coordination.
+- Cross-module communication.
+
+Repository Layer:
+- Database queries via Prisma Client.
+- Transaction handling ($transaction).
+- Query optimization.
+- Soft delete filtering (WHERE deleted_at IS NULL).
+- TIDAK mengandung business logic.
+
+Integration Layer (Adapters):
+- External services menggunakan interface/adapter pattern.
+- Midtrans adapter, WhatsApp adapter, Email adapter, Storage adapter.
+- Provider bisa diganti tanpa mengubah business logic.
+
+10.3 Frontend Architecture
+
+Rendering Strategy:
+- SSR: public event listing, event detail → untuk SEO dan performance.
+- CSR: admin dashboard, registration wizard, payment page, profile → tidak perlu SEO.
+- Static generation TIDAK digunakan pada MVP (konten event dinamis).
+
+State Management:
+- API state: TanStack Query (fetching, caching, background refetch).
+- Client state: Zustand stores:
+    - authStore: user data, JWT token, login status, role.
+    - registrationStore: multi-step wizard state (ephemeral, reset saat refresh).
+    - uiStore: sidebar state, active modal, notification count (ephemeral).
+
+Frontend Responsibilities:
+- Render UI sesuai UIUX Spec v1.5 dan Stitch AI reference.
+- Client-side validation (format check, required fields — Zod).
+- User interaction dan form state management.
+- Loading states (skeleton), error states (inline, toast, error pages), empty states.
+- TIDAK melakukan business-critical calculation (pricing, slot, discount validation).
+
+10.4 Repository Structure
+
+Monorepo (Recommended):
+ruanasa-space/
+  apps/
+    web/                  # Next.js frontend
+    api/                  # NestJS backend
+  packages/
+    shared/               # Shared types, validators (Zod schemas)
+  package.json            # Root (Yarn workspaces)
+
+
+========================================================================
+11. FRONTEND DESIGN RULES
+========================================================================
+
+11.1 Design Reference
+
+Stitch AI adalah referensi utama untuk:
+- Component styling dan visual design.
+- Color palette dan design tokens.
+- Typography scale dan font.
+- Layout patterns dan spacing.
+- Component visual appearance.
+
+UIUX Spec v1.5 adalah referensi utama untuk:
+- Page structure dan content requirements.
+- Component behavior dan interaction patterns.
+- Business logic display (pricing breakdown, status badges, dll.).
+- Error states, empty states, loading states per halaman.
+
+11.2 Implementation Rules
+
+AI WAJIB:
+- Menggunakan Stitch AI reference untuk visual styling.
+- Implement dengan shadcn/ui components + Tailwind CSS utility classes.
+- Menggunakan design tokens dari Stitch AI, di-map ke CSS custom properties / Tailwind config.
+- Membuat reusable components (lihat komponen shared di TAD Section 5.1).
+- Membuat loading state (skeleton) untuk setiap page dan data-fetching component.
+- Membuat empty state untuk setiap list/collection.
+- Membuat error state untuk setiap form dan API interaction.
+- Responsive: mobile-first untuk participant, desktop-first untuk admin.
+
+AI TIDAK BOLEH:
+- Hardcode warna (hex/rgb langsung di component) — gunakan design tokens / Tailwind config.
+- Membuat style "random" yang tidak ada di Stitch AI reference.
+- Menduplikasi component yang sudah ada di shared/.
+- Menggunakan inline styles — gunakan Tailwind utility classes.
+- Membuat layout yang berbeda dari UIUX Spec v1.5.
+
+11.3 Design Token Implementation
+
+Design tokens dari Stitch AI diimplementasikan melalui:
+1. Tailwind CSS config (tailwind.config.ts) → extend colors, spacing, typography.
+2. CSS custom properties (:root) → runtime theming.
+3. shadcn/ui theme configuration → component-level tokens.
+
+Contoh mapping:
+  Stitch AI "Primary" → Tailwind: bg-primary, text-primary → CSS: --color-primary
+  Stitch AI "Success" → Tailwind: bg-success, text-success → CSS: --color-success
+
+11.4 Breakpoints
+
+Tailwind breakpoints sesuai TAD v1.6:
+  sm: 640px
+  md: 768px
+  lg: 1024px
+  xl: 1280px
+
+Participant: mobile-first → default styles untuk mobile, sm:/md: untuk tablet/desktop.
+Admin: desktop-first → default styles untuk desktop, responsive down.
+
+
+========================================================================
+12. AUTHENTICATION ARCHITECTURE
+========================================================================
+
+12.1 Overview
+
+Custom JWT Authentication — BUKAN Supabase Auth.
+
+Alasan: Auto-create account flow dan phone-as-primary-identifier memerlukan kontrol penuh.
+
+12.2 JWT Specification
+
+- Algorithm: HS256 (HMAC-SHA256).
+- Secret: JWT_SECRET dari environment variable (minimum 256-bit).
+- Expiry: 7 hari (sliding window — diperpanjang setiap authenticated request).
+- Payload: { sub: user_id, role: "admin" | "participant", iat, exp }.
+- Delivery: httpOnly cookie (primary) + Authorization Bearer header (fallback), prioritas cookie dahulu.
+- Blacklisting: invalidated token disimpan di in-memory store sampai expiry.
+
+12.3 Participant Auth Methods
+
+| Method              | Flow                                                      |
+|---------------------|-----------------------------------------------------------|
+| Google OAuth 2.0    | Login → if new user: form Phone → create account → JWT   |
+| Email OTP           | Input email → send OTP → verify → if new: Name+Phone → JWT|
+| WhatsApp OTP        | Input phone → send OTP → verify → if new: Name+Email → JWT|
+| Continue Without Login | Input Name+Phone+Email → check existing → create/reject → JWT |
+
+OTP Specification:
+- Format: 6 digit angka.
+- Expiry: 5 menit.
+- Max attempts: 5 per OTP session.
+- Rate limit: 3 request per 15 menit per identifier.
+- Storage: OTP di-hash (SHA-256) sebelum disimpan.
+
+12.4 Admin Auth
+
+- Method: Email + Password.
+- Password hashing: bcrypt (12 rounds).
+- Login endpoint: POST /api/v1/auth/admin/login.
+
+12.5 Account Linking
+
+User yang dibuat via auto_created, kemudian login via Google/OTP dengan phone/email yang sama:
+- Dikenali sebagai existing user.
+- auth_provider diupdate ke metode login terbaru.
+- Tidak membuat akun duplikat.
+
+
+========================================================================
+13. TESTING STANDARD
+========================================================================
+
+13.1 Test Types per Task
+
+Unit Test (WAJIB):
+- Business logic (pricing calculation, discount stacking, slot counting).
+- Utility functions (date formatting, phone validation, currency formatting).
+- Service methods yang mengandung logic.
+
+Integration Test (WAJIB untuk API):
+- Full API flow: request → controller → service → repository → response.
+- Authentication dan authorization (valid token, invalid token, wrong role).
+- Validation (valid input, invalid input, missing required fields).
+
+Edge Case Test (WAJIB):
+- Invalid input (format salah, value di luar range).
+- Expired payment (slot release, add-on restore, promo restore).
+- Capacity full (concurrent booking scenario).
+- Invalid promo code (expired, inactive, quota habis).
+- Duplicate registration (same user, same event).
+- OTP expired, OTP wrong 5x, OTP rate limited.
+
+13.2 Test Environment
+
+- Framework: Jest (default NestJS dan Next.js).
+- Database test: separate PostgreSQL instance atau SQLite (untuk unit test).
+- External services: SELALU di-mock (payment gateway, WhatsApp, email, Google OAuth).
+- Environment: .env.test dengan test-specific configuration.
+
+13.3 Test Naming Convention
+
+  describe('{ModuleName}Service')
+    it('should {expected behavior} when {condition}')
+
+  Contoh:
+    describe('PricingService')
+      it('should apply early bird price when registration is within early bird period')
+      it('should apply bundle discount when pax count matches pricing rule')
+      it('should return error when promo code is expired')
+
+
+========================================================================
+14. TASK COMPLETION REPORT FORMAT
+========================================================================
+
+Setiap task selesai, AI WAJIB melaporkan dengan format berikut:
+
+------------------------------------------------------------------------
+TASK COMPLETED
+
+Task ID     : [TASK_ID dari DTBD]
+Task Name   : [TASK_NAME]
+Status      : COMPLETED / PARTIAL (jelaskan)
+
+Summary:
+[1-3 kalimat ringkasan apa yang dibuat]
+
+Files Created:
+- [path/to/file1.ts] — [deskripsi singkat]
+- [path/to/file2.ts] — [deskripsi singkat]
+
+Files Modified:
+- [path/to/file3.ts] — [perubahan apa]
+
+Database Changes:
+- [Migration nama] — [perubahan apa]
+- Atau: None
+
+API Changes:
+- [Endpoint baru/berubah]
+- Atau: None
+
+Testing Result:
+- Unit tests: X passed, Y failed
+- Integration tests: X passed, Y failed
+- Edge case tests: X passed, Y failed
+
+Validation Checklist:
+[✓] ERD aligned
+[✓] API aligned
+[✓] Business rule fulfilled
+[✓] Error handling complete
+[✓] Security validated
+[✓] TypeScript strict
+[✓] Tests passing
+[✓] Design aligned (frontend only)
+
+Known Issues / Notes:
+- [jika ada issue yang perlu diperhatikan]
+------------------------------------------------------------------------
+
+
+========================================================================
+15. MASTER TASK EXECUTION PROMPT
+========================================================================
+
+Template prompt untuk mengeksekusi satu task dari DTBD. AI menggunakan template ini sebagai kerangka ketika mengerjakan setiap task:
+
+------------------------------------------------------------------------
+EXECUTE TASK
+
+TASK ID     : [dari DTBD]
+TASK NAME   : [dari DTBD]
+PRIORITY    : [P0/P1/P2]
+EFFORT      : [S/M/L/XL]
+
+REFERENCE:
+  PRD       : [Section number, jika ada]
+  SRD       : [Section number, jika ada]
+  ERD       : [Table names, jika ada]
+  API Spec  : [Endpoint paths, jika ada]
+  UIUX Spec : [Section/Page number, jika ada]
+  TAD       : [Section number, jika ada]
+
+OBJECTIVE   : [Apa yang harus dicapai]
+DEPENDENCY  : [Task ID yang harus selesai lebih dulu]
+
+INPUT:
+  [Data, schema, atau spesifikasi yang digunakan]
+
+EXPECTED OUTPUT:
+  [File, module, endpoint, atau component yang dihasilkan]
+
+IMPLEMENTATION REQUIREMENT:
+
+  Backend:
+  - [requirement 1]
+  - [requirement 2]
+
+  Frontend:
+  - [requirement 1]
+  - [requirement 2]
+
+  Database:
+  - [requirement 1]
+
+  Integration:
+  - [requirement 1]
+
+ACCEPTANCE CRITERIA:
+  1. [criteria 1]
+  2. [criteria 2]
+  3. [criteria 3]
+
+VALIDATION CHECKLIST:
+  [ ] ERD aligned
+  [ ] API aligned
+  [ ] Business rule fulfilled
+  [ ] Error handling complete
+  [ ] Security validated
+  [ ] TypeScript strict
+  [ ] Tests passing
+  [ ] Design aligned
+------------------------------------------------------------------------
+
+
+========================================================================
+16. DEBUGGING TEMPLATE
+========================================================================
+
+Ketika AI menemukan error atau bug:
+
+------------------------------------------------------------------------
+DEBUG REPORT
+
+Task ID     : [Task yang sedang dikerjakan]
+Feature     : [Fitur yang bermasalah]
+
+Expected Behavior:
+  [Apa yang seharusnya terjadi]
+
+Actual Behavior:
+  [Apa yang terjadi]
+
+Error Message:
+  [Error message lengkap]
+
+Relevant Files:
+  - [path/to/file.ts:line]
+
+Root Cause Analysis:
+  1. Root cause: [penyebab utama]
+  2. Impact: [dampak terhadap fitur lain]
+  3. Fix: [solusi yang diimplementasikan]
+  4. Regression risk: [potensi dampak fix terhadap fitur lain]
+  5. Test added: [test yang ditambahkan untuk prevent regression]
+------------------------------------------------------------------------
+
+
+========================================================================
+17. CODE REVIEW CHECKLIST (SELF-REVIEW)
+========================================================================
+
+AI melakukan self-review sebelum melaporkan task selesai:
+
+Architecture:
+[ ] Module structure sesuai TAD v1.6
+[ ] Controller → Service → Repository layer separation terjaga
+[ ] Tidak ada business logic di controller atau repository
+[ ] Adapter pattern digunakan untuk external services
+
+Security:
+[ ] Authentication guard terpasang di endpoint yang membutuhkan
+[ ] Role-based authorization guard terpasang (admin vs participant)
+[ ] Input validation (DTO validation) di setiap endpoint
+[ ] Tidak ada credential hardcoded di source code
+[ ] SQL injection prevention (Prisma parameterized queries)
+[ ] XSS prevention (input sanitization di frontend)
+
+Performance:
+[ ] Query tidak ada N+1 problem (gunakan Prisma include/select)
+[ ] Tidak ada duplicate database call dalam satu request
+[ ] Pagination diterapkan pada list endpoints
+[ ] Index dimanfaatkan pada query WHERE/ORDER
+
+Maintainability:
+[ ] Naming sesuai convention (Section 9)
+[ ] JSDoc pada semua function
+[ ] Tidak ada dead code atau commented-out code
+[ ] Reusable function/component di-extract, tidak di-copy-paste
+
+
+========================================================================
+18. AI PROHIBITED ACTIONS
+========================================================================
+
+AI TIDAK BOLEH melakukan hal berikut tanpa APPROVAL EKSPLISIT:
+
+18.1 Database
+
+- Mengubah database schema (menambah/mengubah/menghapus tabel atau kolom).
+- Mengubah foreign key relationship.
+- Mengubah unique constraint.
+- Membuat field/kolom di luar ERD v1.6.
+- Hard delete pada tabel yang memiliki soft delete.
+
+18.2 API
+
+- Mengubah API contract (endpoint path, HTTP method, request/response format).
+- Menambah endpoint di luar API Spec v1.6.
+- Mengubah response status code.
+- Mengubah error_code values.
+
+18.3 Business Logic
+
+- Mengubah business rule (pricing calculation order, discount stacking).
+- Mengubah authentication flow (JWT spec, OTP spec).
+- Mengubah payment processing flow (webhook, expiration).
+- Mengubah data validation rules (field constraints, unique constraints).
+
+18.4 Code Quality
+
+- Menggunakan credential hardcoded di source code.
+- Mengabaikan error handling.
+- Menghapus test yang sudah passing.
+- Menggunakan `any` type di TypeScript.
+- Commit secrets (.env file, API keys).
+
+18.5 Frontend
+
+- Membuat UI yang berbeda dari Stitch AI reference dan UIUX Spec v1.5.
+- Hardcode warna (hex/rgb) di component.
+- Melakukan business-critical calculation di frontend.
+- Membuat component yang sudah ada di shared/.
+
+18.6 AI BOLEH (Tanpa Approval)
+
+- Menentukan internal implementation detail (design patterns, code structure).
+- Memilih utility libraries (selama sesuai tech stack).
+- Mengoptimasi queries (tanpa mengubah result).
+- Menambah error handling yang TIDAK mengubah API contract.
+- Menulis dan menjalankan tests.
+- Refactor internal code (tanpa mengubah external behavior).
+
+
+========================================================================
+19. STITCH AI IMPLEMENTATION GUIDE
+========================================================================
+
+Section ini memberikan panduan spesifik ketika mengimplementasikan UI berdasarkan Stitch AI reference.
+
+19.1 Context untuk Stitch AI
+
+  Product     : Ruanasa Space
+  Platform    : Responsive Web Application
+  Style       : Premium wellness community platform
+  Aesthetic   : Minimal, Calm, Modern, Professional, Trustworthy
+  Industry    : Wellness / Yoga / Community Events
+
+19.2 Setiap Halaman Frontend WAJIB Memiliki
+
+  - Mobile layout (default, mobile-first participant)
+  - Desktop layout (responsive up)
+  - Loading state (skeleton shimmer)
+  - Error state (inline validation, toast, error page)
+  - Empty state (ilustrasi + pesan + CTA jika relevan)
+
+19.3 Component Implementation Flow
+
+  1. Lihat Stitch AI reference untuk visual design component.
+  2. Identifikasi shadcn/ui base component yang sesuai (Button, Input, Card, dll.).
+  3. Extend/customize shadcn/ui component dengan Tailwind CSS sesuai Stitch AI visual.
+  4. Gunakan design tokens dari Tailwind config (bukan hardcode values).
+  5. Test responsive di mobile (375px) dan desktop (1280px).
+
+19.4 Referensi Dokumen untuk Frontend
+
+  - UIUX Spec v1.5 Section 3: Design Tokens (color, typography, spacing, border radius)
+  - UIUX Spec v1.5 Section 5-6: Page-by-page UI specification
+  - UIUX Spec v1.5 Section 7: Shared UI Components
+  - UIUX Spec v1.5 Section 8: Design & Development Tools (Stitch AI reference)
+  - TAD v1.6 Section 5: Frontend Architecture & file structure
+  - Stitch AI Design Brief v1.1: Complete design context
+
+
+========================================================================
+20. ENVIRONMENT VARIABLES
+========================================================================
+
+20.1 Backend (.env)
+
+# Application
+NODE_ENV=development|staging|production
+PORT=3001
+APP_URL=https://ruanasaspace.com
+FRONTEND_URL=https://ruanasaspace.com
+
+# Database
+DATABASE_URL=postgresql://user:pass@host:6543/db?pgbouncer=true
+DIRECT_URL=postgresql://user:pass@host:5432/db
+
+# JWT
+JWT_SECRET=minimum-256-bit-random-string
+JWT_EXPIRY=7d
+
+# Google OAuth
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=xxx
+
+# Payment Gateway (Midtrans)
+MIDTRANS_SERVER_KEY=SB-Mid-server-xxx
+MIDTRANS_CLIENT_KEY=SB-Mid-client-xxx
+MIDTRANS_IS_PRODUCTION=false
+MIDTRANS_WEBHOOK_URL=https://api.ruanasaspace.com/api/v1/payments/webhook
+
+# WhatsApp
+WHATSAPP_PROVIDER=fonnte
+WHATSAPP_API_URL=https://api.fonnte.com
+WHATSAPP_API_KEY=xxx
+WHATSAPP_SENDER_NUMBER=+62xxx
+
+# Email
+EMAIL_PROVIDER=resend
+EMAIL_API_KEY=re_xxx
+EMAIL_FROM_ADDRESS=noreply@ruanasaspace.com
+EMAIL_FROM_NAME=Ruanasa Space
+
+# Storage
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_KEY=xxx
+SUPABASE_STORAGE_BUCKET=public
+
+# CORS
+CORS_ORIGINS=https://ruanasaspace.com,https://www.ruanasaspace.com
+
+20.2 Frontend (.env.local)
+
+NEXT_PUBLIC_API_URL=https://api.ruanasaspace.com/api/v1
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+NEXT_PUBLIC_MIDTRANS_CLIENT_KEY=SB-Mid-client-xxx
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_APP_URL=https://ruanasaspace.com
+
+20.3 Secrets Management Rules
+
+- .env file WAJIB ada di .gitignore.
+- Secrets TIDAK BOLEH di frontend public environment (hanya NEXT_PUBLIC_* untuk non-sensitive).
+- Secrets TIDAK BOLEH ditulis langsung di source code.
+- Midtrans SERVER key TIDAK di-expose ke frontend.
+- JWT_SECRET harus unique per environment.
+- Production secrets disimpan di provider dashboard (Vercel, Render).
+
+
+========================================================================
+21. DEVELOPMENT PHASES
+========================================================================
+
+Execution order mengikuti DTBD v1.6 (68 tasks, 12 phases):
+
+Phase 0  : Project Foundation & Infrastructure
+Phase 1  : Database Schema & Migration
+Phase 2  : Authentication & Authorization
+Phase 3  : Core Backend — User, Event, Master Data
+Phase 4  : Backend — Registration, Pricing, Payment
+Phase 5  : Backend — Operations (Participant, Attendance, Feedback)
+Phase 6  : Backend — Notification, Background Jobs, Analytics
+Phase 7  : Frontend Foundation & Shared Components
+Phase 8  : Frontend — Public Pages & Auth
+Phase 9  : Frontend — Registration, Payment, Profile
+Phase 10 : Frontend — Admin Dashboard & Management
+Phase 11 : Integration & End-to-End Testing
+Phase 12 : Deployment & Go-Live
+
+AI WAJIB mengerjakan task secara sequential sesuai phase dan dependency.
+AI TIDAK BOLEH melompati phase atau mengerjakan task dengan dependency yang belum selesai.
+
+
+========================================================================
+22. PROMPT LIBRARY
+========================================================================
+
+Daftar prompt template yang dapat digunakan AI untuk task spesifik:
+
+22.1 Create Backend Module
+"Buat NestJS module untuk [module_name] sesuai TAD v1.6 Section 6.1 structure. Include: module, controller, service, repository, DTO files. Follow naming convention di Section 9.1."
+
+22.2 Create API Endpoint
+"Implement endpoint [METHOD] [PATH] sesuai API Spec v1.6 Section [X]. Include: DTO validation, auth guard, role guard, service logic, repository query, error handling, standardized response format."
+
+22.3 Create Prisma Migration
+"Buat Prisma migration untuk tabel [table_name] sesuai ERD v1.6. Include: semua kolom, tipe data, constraints, indexes, foreign keys, default values."
+
+22.4 Create React Page
+"Buat halaman [page_name] sesuai UIUX Spec v1.5 Section [X]. Gunakan Stitch AI reference untuk visual design. Include: loading state, empty state, error state, responsive layout."
+
+22.5 Create React Component
+"Buat reusable component [component_name] sesuai UIUX Spec v1.5 Section [X] dan Stitch AI reference. Include: props interface, variants, responsive, accessibility."
+
+22.6 Implement Authentication
+"Implement [auth_method] flow sesuai TAD v1.6 Section 4.10 dan API Spec v1.6 auth endpoints. Include: guard, strategy, DTO, service logic, token handling."
+
+22.7 Implement Payment Gateway
+"Implement Midtrans [payment_method] sesuai TAD v1.6 Section 4.15 dan API Spec v1.6 payment endpoints. Include: create transaction, webhook handler, signature verification, idempotency."
+
+22.8 Implement Background Job
+"Implement background job [job_name] sesuai TAD v1.6 Section [X]. Include: cron schedule, job logic, error handling, logging."
+
+22.9 Debug Error
+"Debug error: [error_description]. Use debugging template (Section 16). Analyze root cause, implement fix, add regression test."
+
+22.10 Code Review
+"Review code untuk task [TASK_ID] menggunakan checklist di Section 17. Report findings dan fix issues."
+
+22.11 Query Optimization
+"Optimize query di [file:function]. Check: N+1 problem, missing indexes, unnecessary joins, pagination. TIDAK mengubah query result."
+
+22.12 Refactoring
+"Refactor [file/module] untuk improve readability/maintainability. TIDAK mengubah external behavior atau API contract."
+
+
+========================================================================
+23. EXECUTION RULES SUMMARY
+========================================================================
+
+Quick reference rules untuk AI:
+
+DO:
+✓ Baca reference documents sebelum mulai coding.
+✓ Kerjakan satu Task ID per waktu.
+✓ Ikuti dependency chain — tidak melompati task.
+✓ Tulis test untuk setiap implementasi.
+✓ Laporkan setiap perubahan (files created, modified, database changes).
+✓ Gunakan format response standar di setiap API.
+✓ Gunakan TypeScript strict mode.
+✓ Gunakan design tokens (bukan hardcode values).
+✓ Buat loading, empty, dan error state di setiap halaman.
+✓ Self-review menggunakan checklist sebelum report.
+
+DON'T:
+✗ Mengubah database schema tanpa approval.
+✗ Mengubah API contract.
+✗ Mengubah business rules.
+✗ Menghapus validation atau error handling.
+✗ Menggunakan credential hardcoded.
+✗ Menggunakan `any` type.
+✗ Melakukan pricing calculation di frontend.
+✗ Membuat UI berbeda dari Stitch AI reference + UIUX Spec.
+✗ Skip testing.
+✗ Commit .env files.
+
+
+========================================================================
+END OF DOCUMENT
+========================================================================
+
+Document    : AI Development Context Guide v1.3
+Product     : Ruanasa Space
+Created     : 2026-10-05
+Purpose     : Panduan operasional untuk AI coding assistant
+Usage       : Load di awal setiap AI development session

@@ -1,0 +1,931 @@
+USER FLOW DOCUMENT (UFD)
+
+Ruanasa Space
+
+Version: 1.5 (Updated)
+Platform: Web-Based Responsive Application
+Target Device: Desktop Admin + Mobile Browser Participant
+Product Type: Wellness Event Management Platform
+
+------------------------------------------------------------------------
+
+1. USER ROLE
+
+1.1 Admin / Ruanasa Team
+
+Admin bertanggung jawab mengelola seluruh operasional event wellness. Mengakses platform melalui dashboard admin di desktop browser. Login menggunakan email dan password.
+
+Capability:
+- Membuat dan mengelola event (termasuk template dan duplicate).
+- Mengelola instruktur dan specialization.
+- Mengatur pricing per event (normal, early bird, bundle discount).
+- Mengelola add-on per event.
+- Mengelola promo code.
+- Mempublikasikan event dan membagikan via URL/QR.
+- Melihat dan mengelola participant list (search, filter, export).
+- Memantau pembayaran.
+- Mencatat attendance.
+- Menerima in-app notification.
+- Mengirim follow-up pasca-event.
+- Melihat dashboard analytics.
+
+1.2 Participant
+
+Participant adalah pengguna yang mengikuti aktivitas wellness. Mengakses platform melalui mobile atau desktop browser. Login menggunakan passwordless authentication atau continue without login (akun otomatis dibuat).
+
+Capability:
+- Melihat event tersedia dan detail event.
+- Registrasi event (termasuk multi-pax).
+- Memilih add-on.
+- Mendapatkan discount (early bird, bundle, promo code).
+- Melakukan pembayaran (QRIS / bank transfer).
+- Menerima WhatsApp notification.
+- Mengisi feedback setelah event.
+- Melihat profil, riwayat event, dan attendance history.
+
+1.3 User vs Participant
+
+User dan Participant adalah entitas berbeda:
+- User: orang yang memiliki akun dan melakukan transaksi (buyer). Semua peserta yang mendaftar event pasti memiliki akun.
+- Participant: orang yang hadir dalam event. Satu user bisa mendaftarkan beberapa participant.
+- Contoh: Sarah (user/buyer) mendaftar 3 pax — Sarah adalah participant pertama, dua lainnya hanya memiliki data nama.
+
+1.4 Primary Identifier
+
+Nomor telepon adalah identifikasi utama user. Digunakan sebagai primary lookup saat pengecekan akun existing, diikuti email sebagai secondary check.
+
+------------------------------------------------------------------------
+
+2. OVERALL USER JOURNEY
+
+2.1 Final Participant Journey
+
+Open Event
+  ↓
+Login / Continue Without Login (auto-create account jika baru)
+  ↓
+Fill Participant Data
+  ↓
+Select Pax
+  ↓
+Add Participant Name (jika >1 pax)
+  ↓
+Select Add-on
+  ↓
+Apply Discount (early bird & bundle otomatis, promo code manual)
+  ↓
+Review Order Summary
+  ↓
+Payment
+  ↓
+Payment Verified
+  ↓
+Registration Confirmed
+  ↓
+WhatsApp Confirmation
+  ↓
+WhatsApp Reminder H-1
+  ↓
+Attend Event
+  ↓
+Attendance Recorded
+  ↓
+Post Event Notification
+  ↓
+Submit Feedback
+
+2.2 Final Admin Journey
+
+Login Dashboard (email + password)
+  ↓
+Manage Instructor & Specialization
+  ↓
+Create Event / Use Template / Duplicate Event
+  ↓
+Set Pricing (normal, early bird, bundle discount)
+  ↓
+Set Add-on
+  ↓
+Set Promo Code
+  ↓
+Publish Event
+  ↓
+Share Event Link / QR
+  ↓
+Monitor Registration (in-app notification)
+  ↓
+Monitor Payment (in-app notification)
+  ↓
+Manage Participant List
+  ↓
+Record Attendance
+  ↓
+Mark Event Completed
+  ↓
+Send Post Event Follow Up
+  ↓
+View Feedback
+  ↓
+Export Data
+  ↓
+View Dashboard Analytics
+
+------------------------------------------------------------------------
+
+3. AUTHENTICATION FLOW
+
+3.1 Participant Authentication
+
+Ruanasa Space menggunakan passwordless authentication untuk participant.
+
+Metode:
+- Google Login (OAuth 2.0)
+- Email OTP
+- WhatsApp OTP
+- Continue Without Login (auto-create account)
+
+3.2 Admin Authentication
+
+Admin login menggunakan email dan password.
+
+3.3 User Data
+
+- Name
+- Phone Number (unique, primary identifier)
+- Email (unique, secondary identifier)
+- Role (admin / participant)
+
+3.4 Google Login Flow
+
+Participant tap "Login with Google"
+  → Redirect ke Google OAuth consent screen
+  → Participant pilih akun Google
+  → Google mengirim token ke sistem
+  → Sistem validasi token dan ambil data profil (nama, email)
+  → Sistem cek email di database:
+     → Jika user existing: login langsung
+     → Jika user baru: buat akun otomatis, minta input phone number
+  → Redirect ke halaman event
+
+3.5 Email OTP Flow
+
+Participant masukkan email
+  → Sistem cek email di database:
+     → Jika user existing: generate OTP dan kirim ke email
+     → Jika user baru: generate OTP, kirim ke email. Setelah verifikasi, minta input nama dan phone number, buat akun.
+  → Participant masukkan OTP
+  → Sistem validasi OTP
+  → Jika valid: login berhasil
+
+OTP Rules:
+- OTP berlaku 5 menit.
+- Maksimum 5 percobaan salah, setelah itu harus request OTP baru.
+- Maksimum 3 request OTP dalam 15 menit (rate limiting).
+- Jika OTP expired: tampilkan pesan "OTP sudah expired" dan tombol "Kirim ulang OTP".
+- Jika salah 5 kali: tampilkan pesan "Terlalu banyak percobaan, silakan request OTP baru".
+- Jika rate limit: tampilkan pesan "Terlalu banyak permintaan, silakan tunggu 15 menit".
+
+3.6 WhatsApp OTP Flow
+
+Participant masukkan nomor telepon
+  → Sistem cek phone number di database:
+     → Jika user existing: generate OTP dan kirim via WhatsApp
+     → Jika user baru: generate OTP, kirim via WhatsApp. Setelah verifikasi, minta input nama dan email, buat akun.
+  → Participant masukkan OTP
+  → Sistem validasi OTP
+  → Jika valid: login berhasil
+
+OTP Rules: sama dengan Email OTP.
+
+3.7 Continue Without Login — Auto Account Creation Flow
+
+Participant tap "Continue Without Login"
+  → Tampilkan form: Name, Phone Number (primary), Email
+  → Participant isi semua field
+  → Participant tap "Lanjutkan"
+  → Sistem cek phone_number di tabel users:
+     → DITEMUKAN: tampilkan pesan "Nomor telepon ini sudah terdaftar, silakan login untuk melanjutkan."
+        → Tampilkan opsi login (Google, Email OTP, WhatsApp OTP)
+        → Setelah login, lanjut ke registrasi dengan data dari profil
+     → TIDAK DITEMUKAN: sistem cek email di tabel users:
+        → DITEMUKAN: tampilkan pesan "Email ini sudah terdaftar, silakan login untuk melanjutkan."
+           → Tampilkan opsi login
+           → Setelah login, lanjut ke registrasi dengan data dari profil
+        → TIDAK DITEMUKAN: akun baru otomatis dibuat
+           → auth_provider = 'auto_created'
+           → Session aktif langsung diberikan
+           → Lanjut ke registrasi
+
+Catatan: Tidak ada konsep guest tanpa akun. Semua peserta yang mendaftar pasti memiliki akun.
+
+3.8 Account Linking
+
+Jika user awalnya dibuat melalui auto_created, kemudian di kemudian hari login menggunakan Google/Email OTP/WhatsApp OTP dengan email atau phone yang sama, sistem mengenali akun existing dan login ke akun tersebut. Field auth_provider diupdate ke metode login terbaru.
+
+3.9 Session Management
+
+- Registered user: session berlaku 7 hari (sliding expiration).
+- User auto_created: session berlaku 7 hari (sama seperti registered user).
+- Jika session expired: redirect ke halaman login.
+
+------------------------------------------------------------------------
+
+4. EVENT MANAGEMENT FLOW
+
+4.1 Create Event Flow
+
+Admin login
+  → Buka menu "Create Event"
+  → Pilih metode: Blank / From Template / Duplicate Existing
+  → Isi detail event:
+     - Event Name (maks 150 karakter)
+     - Activity Type
+     - Date, Start Time, End Time
+     - Location (maks 500 karakter)
+     - Description (maks 5000 karakter)
+     - Upload Poster (JPG/JPEG/PNG/WebP, maks 5 MB)
+     - Pilih Instructor (dari daftar instructor aktif)
+     - Set Capacity (minimum 1)
+  → Save as Draft
+  → Set Pricing (section 5)
+  → Set Add-on (section 7)
+  → Set Promo Code (section 8)
+  → Review event
+  → Publish Event
+
+4.2 Event Status Flow
+
+Draft → Published → Completed
+
+Rules:
+- Draft: event tidak terlihat oleh participant. Bisa diedit dan dihapus.
+- Published: event terlihat, registrasi terbuka. Bisa diedit (kecuali activity type). Tidak bisa dihapus.
+- Completed: registrasi tertutup, feedback collection aktif. Tidak bisa diedit atau dihapus.
+- Transisi yang diperbolehkan: Draft → Published, Published → Completed, Draft → Delete.
+
+4.3 Event Distribution Flow
+
+Admin pada event berstatus Published
+  → Klik "Share Event"
+  → Pilih metode:
+     - Copy Public URL
+     - Download QR Code
+  → Bagikan ke calon peserta (WhatsApp, Instagram, dll)
+
+4.4 Event Template Flow
+
+Admin buka menu "Event Templates"
+  → Create Template: isi Template Name, Activity Type, Description, pilih Instructor
+  → Save Template
+
+Saat membuat event:
+  → Pilih "From Template"
+  → Pilih template yang tersedia
+  → Data auto-fill: Activity Type, Description, Instructor
+  → Admin melengkapi data lainnya (tanggal, waktu, lokasi, kapasitas)
+  → Admin mengatur pricing, add-on, dan promo code secara manual
+
+Catatan: Template pada MVP tidak menyimpan add-on dan pricing.
+
+4.5 Duplicate Event Flow
+
+Admin buka event yang sudah ada
+  → Klik "Duplicate Event"
+  → Sistem copy semua data event:
+     - Ter-copy: Event Name, Activity Type, Description, Poster, Instructor, Capacity, Location, Add-on config, Pricing config (event prices & pricing rules).
+     - TIDAK ter-copy: Date, Start Time, End Time (dikosongkan, wajib diisi ulang sebelum publish), Registrations, Participants, Payments, Attendance (reset kosong).
+  → Status event baru: Draft
+  → Admin update tanggal/waktu dan detail lainnya
+  → Publish Event
+
+------------------------------------------------------------------------
+
+5. PRICING MANAGEMENT FLOW
+
+5.1 Set Normal Price
+
+Admin pada halaman event (Draft/Published)
+  → Buka tab "Pricing"
+  → Tambah harga: Price Type = Normal, masukkan harga (Rupiah)
+  → Save
+
+5.2 Set Early Bird Price
+
+Admin pada tab "Pricing"
+  → Tambah harga: Price Type = Early Bird, masukkan harga, set Start Date dan End Date
+  → Save
+
+Behavior:
+- Jika tanggal registrasi dalam periode early bird: harga early bird otomatis diterapkan.
+- Jika di luar periode: harga normal berlaku.
+- Participant melihat harga yang berlaku saat itu di halaman event.
+
+5.3 Set Bundle Discount
+
+Admin pada tab "Pricing"
+  → Tambah pricing rule: Rule Type = Bundle
+  → Set Minimum Quantity (jumlah pax), Discount Type (Percentage/Fixed Amount), Discount Value
+  → Save
+
+Contoh:
+- 2 pax = diskon 10%
+- 3 pax = diskon 15%
+
+Behavior:
+- Sistem mengecek jumlah pax saat registrasi.
+- Jika memenuhi minimum quantity: discount otomatis diterapkan dan ditampilkan di order summary.
+- Participant tidak perlu input apapun.
+
+5.4 Discount Stacking
+
+Urutan penerapan discount (otomatis):
+1. Harga dasar = Normal Price atau Early Bird Price (mana yang berlaku).
+2. Bundle discount diterapkan jika memenuhi syarat.
+3. Promo code diterapkan jika valid.
+
+Semua discount bisa di-stack. Total payment minimum Rp0.
+
+------------------------------------------------------------------------
+
+6. CAPACITY & SLOT MANAGEMENT FLOW
+
+6.1 Slot Calculation
+
+Kapasitas dihitung berdasarkan jumlah participant (bukan per booking).
+
+Contoh:
+- Capacity: 30
+- Sarah mendaftar 3 pax → slot terpakai: 3, sisa: 27
+- Budi mendaftar 2 pax → slot terpakai: 5, sisa: 25
+
+6.2 Capacity Display
+
+Participant melihat sisa slot di halaman event:
+- Jika tersedia: tampilkan "X slot tersisa" atau indicator availability.
+- Jika penuh: tampilkan "Event Penuh", tombol registrasi hilang.
+
+6.3 Capacity Rules
+
+- Slot dihitung real-time berdasarkan registrasi Pending + Confirmed.
+- Jika sisa slot = 0: registrasi disabled.
+- Jika sisa slot < jumlah pax yang dipilih: registrasi ditolak, tampilkan pesan error.
+- Saat payment expired: slot otomatis dikembalikan.
+- Concurrent booking (dua peserta berebut slot terakhir): peserta yang submit lebih dulu mendapat slot, yang lainnya mendapat pesan "Slot sudah penuh".
+
+------------------------------------------------------------------------
+
+7. ADD-ON MANAGEMENT FLOW
+
+7.1 Admin: Create Add-on
+
+Admin pada halaman event (Draft/Published)
+  → Buka tab "Add-on"
+  → Tambah add-on:
+     - Name (maks 100 karakter)
+     - Description (optional, maks 500 karakter)
+     - Price (Rupiah)
+     - Available Quantity
+     - Max Purchase Quantity per registrasi
+     - Status (Active/Inactive)
+  → Save
+
+7.2 Participant: Select Add-on
+
+Saat registrasi, setelah select pax:
+  → Tampilkan daftar add-on yang Active dan quantity > 0
+  → Participant pilih add-on dan atur quantity (sampai max purchase quantity)
+  → Sistem menghitung subtotal add-on otomatis
+  → Subtotal ditambahkan ke order summary
+
+Contoh:
+- Yoga Mat Rental — Rp20.000 x 2 = Rp40.000
+
+7.3 Add-on Quantity Rules
+
+- Available quantity berkurang sesuai pembelian.
+- Jika available quantity = 0: add-on tidak ditampilkan.
+- Jika payment expired: add-on quantity dikembalikan.
+
+------------------------------------------------------------------------
+
+8. DISCOUNT CODE MANAGEMENT FLOW
+
+8.1 Admin: Create Promo Code
+
+Admin buka menu "Promo Codes"
+  → Tambah promo code:
+     - Code (unique, alphanumeric, maks 20 karakter)
+     - Discount Type (Percentage / Fixed Amount)
+     - Discount Value
+     - Quota (jumlah penggunaan)
+     - Expiry Date
+     - Status (Active / Inactive)
+  → Save
+
+8.2 Participant: Apply Promo Code
+
+Saat registrasi, setelah select add-on:
+  → Tampilkan field "Masukkan Promo Code"
+  → Participant masukkan kode
+  → Klik "Apply"
+  → Sistem validasi:
+     - Kode ditemukan? → Jika tidak: "Kode promo tidak valid"
+     - Status Active? → Jika tidak: "Kode promo tidak aktif"
+     - Belum expired? → Jika sudah: "Kode promo sudah expired"
+     - Quota tersedia? → Jika habis: "Kode promo sudah habis"
+  → Jika semua valid: discount diterapkan, ditampilkan di order summary
+  → Satu registrasi hanya bisa menggunakan satu promo code
+
+8.3 Promo Code Quota Rules
+
+- Quota berkurang saat registrasi dibuat (bukan saat payment confirmed). Jika registrasi expired, quota dikembalikan.
+
+------------------------------------------------------------------------
+
+9. REGISTRATION FLOW (DETAIL)
+
+9.1 Participant Opens Event
+
+Participant membuka event melalui:
+- Public URL (dari link yang dibagikan)
+- QR Code (scan → redirect ke public URL)
+- Browsing event list di website
+
+Pada halaman event, participant melihat:
+- Event Name, Activity Type, Date, Time, Location
+- Description
+- Poster
+- Instructor info (nama, foto, bio, specialization)
+- Harga yang berlaku (normal atau early bird)
+- Sisa slot / status ketersediaan
+- Add-on yang tersedia
+- Tombol "Daftar Sekarang" (jika event Published dan slot tersedia)
+
+9.2 Authentication Step
+
+Participant klik "Daftar Sekarang"
+  → Jika sudah login: langsung ke step 9.3.
+  → Jika belum login, tampilkan opsi:
+     - Login with Google
+     - Login with Email OTP
+     - Login with WhatsApp OTP
+     - Continue Without Login
+  → Masing-masing flow sesuai section 3 (Authentication Flow).
+  → Setelah login/auto-create selesai: lanjut ke step 9.3.
+
+9.3 Fill Participant Data
+
+Data auto-fill dari profil user (karena semua peserta pasti punya akun):
+  → Name, Email, Phone Number terisi otomatis
+  → Participant bisa edit jika diperlukan
+
+9.4 Select Pax
+
+Participant memilih jumlah peserta (minimum 1).
+  → Sistem mengecek sisa slot:
+     - Jika cukup: lanjut
+     - Jika tidak cukup: tampilkan pesan "Slot tersisa hanya X, silakan kurangi jumlah peserta"
+
+9.5 Add Participant Name
+
+Jika pax > 1:
+  → Tampilkan field nama untuk setiap peserta tambahan
+  → Participant tambahan hanya wajib mengisi Name
+  → Participant pertama = buyer (data sudah terisi dari step 9.3)
+
+Jika pax = 1:
+  → Skip step ini
+
+9.6 Select Add-on
+
+Tampilkan daftar add-on yang Active dan available:
+  → Participant pilih add-on dan atur quantity
+  → Sistem menghitung subtotal per add-on
+  → Jika tidak ada add-on: skip step ini
+
+9.7 Apply Discount
+
+Early Bird: otomatis diterapkan jika dalam periode.
+Bundle Discount: otomatis diterapkan jika jumlah pax memenuhi minimum.
+Promo Code: participant masukkan kode dan klik "Apply" (optional).
+
+9.8 Review Order Summary
+
+Tampilkan ringkasan order:
+  - Participant list (nama per peserta)
+  - Harga per pax (normal/early bird) x jumlah pax = Subtotal
+  - Bundle discount (jika berlaku): -Rp xxx
+  - Add-on list: item x quantity = Subtotal per add-on
+  - Promo code discount (jika berlaku): -Rp xxx
+  - Total Payment: Rp xxx
+
+  → Participant klik "Bayar Sekarang"
+  → Registrasi dibuat (status: Pending, buyer_user_id selalu terisi)
+  → Slot di-lock
+  → Payment deadline dimulai (60 menit)
+
+9.9 Payment
+
+Tampilkan pilihan metode pembayaran:
+  - QRIS: tampilkan QR code untuk scan
+  - Bank Transfer: tampilkan nomor virtual account
+
+  → Participant dapat mengganti metode pembayaran selama masih pending
+  → Participant melakukan pembayaran
+  → Payment gateway memproses dan mengirim callback ke sistem
+
+9.10 Payment Verification
+
+Sistem menerima callback dari payment gateway:
+  → Validasi callback signature
+  → Update Payment Status: Pending Payment → Paid
+  → Update Registration Status: Pending → Confirmed
+  → Buat Attendance record untuk setiap participant (status: Not Checked)
+  → Kirim WhatsApp Confirmation ke buyer
+
+9.11 Payment Expiration
+
+Jika pembayaran tidak diselesaikan dalam 60 menit:
+  → Registration status → Expired
+  → Slot dikembalikan ke kapasitas event
+  → Add-on quantity dikembalikan
+  → Promo code quota dikembalikan (jika digunakan)
+  → Participant dapat mendaftar ulang pada event yang sama setelah registrasi expired.
+
+9.12 Registration Confirmed
+
+Participant melihat halaman konfirmasi:
+  - "Registrasi Berhasil"
+  - Detail event (nama, tanggal, waktu, lokasi)
+  - Jumlah participant
+  - Status: Confirmed
+  - Info: "Konfirmasi juga dikirim via WhatsApp"
+
+------------------------------------------------------------------------
+
+10. INSTRUCTOR MANAGEMENT FLOW
+
+10.1 Create Instructor
+
+Admin buka menu "Instructors"
+  → Klik "Add Instructor"
+  → Isi data:
+     - Instructor Name (maks 100 karakter)
+     - Upload Profile Picture (optional)
+     - Bio (optional, maks 2000 karakter)
+     - Contact Information (optional, maks 500 karakter)
+     - Pilih Specialization (satu atau lebih): Vinyasa Yoga, Hatha Yoga, Meditation, Breathwork, dll.
+     - Status: Active (default)
+  → Save
+
+10.2 Manage Specialization
+
+Admin buka menu "Specializations"
+  → Tambah specialization baru (contoh: Yin Yoga, Sound Healing)
+  → Specialization tersedia untuk dipilih saat membuat/edit instructor
+
+10.3 Edit Instructor
+
+Admin klik instructor dari daftar
+  → Edit data (nama, foto, bio, specialization, kontak, status)
+  → Save
+
+10.4 Instructor Rules
+
+- Hanya instructor berstatus Active yang tampil sebagai pilihan saat membuat event.
+- Instructor Inactive tetap muncul di event lama yang sudah dibuat.
+- Instructor tidak dapat dihapus jika masih terhubung dengan event berstatus Published.
+- Mengubah status ke Inactive: instructor tidak muncul di dropdown event baru, tapi event existing tidak terpengaruh.
+
+------------------------------------------------------------------------
+
+11. PARTICIPANT MANAGEMENT FLOW
+
+11.1 View Participant List
+
+Admin buka event
+  → Klik tab "Participants"
+  → Tampilkan daftar participant:
+     - Participant Name
+     - Booking Owner
+     - Email
+     - Phone Number
+     - Payment Status (Pending Payment / Paid / Expired)
+     - Registration Status (Pending / Confirmed / Expired)
+     - Attendance Status (Not Checked / Present)
+
+11.2 Search & Filter
+
+Admin dapat:
+  → Search: ketik nama, email, atau phone number di search bar
+  → Filter by: Payment Status, Registration Status, Attendance Status
+  → Hasil ditampilkan real-time
+
+11.3 Export Participant Data
+
+Admin klik "Export"
+  → Pilih format: Excel (.xlsx) atau CSV (.csv)
+  → File diunduh dengan data:
+     - Participant Name
+     - Booking Owner
+     - Email
+     - Phone Number
+     - Payment Status
+     - Registration Status
+     - Attendance Status
+     - Add-on yang dibeli
+     - Total Payment
+
+------------------------------------------------------------------------
+
+12. PAYMENT MONITORING FLOW
+
+12.1 Admin: Monitor Payment
+
+Admin buka event
+  → Klik tab "Payments" atau lihat di participant list
+  → Tampilkan status pembayaran setiap registrasi:
+     - Booking Owner
+     - Total Payment
+     - Payment Method
+     - Payment Status (Pending Payment / Paid / Expired)
+     - Payment Deadline (countdown, hanya untuk status Pending Payment)
+
+12.2 Payment Gateway Failure Handling
+
+Jika payment callback gagal diterima:
+  → Admin dapat trigger "Check Payment Status" dari dashboard
+  → Sistem melakukan manual check ke payment gateway
+  → Status diupdate berdasarkan response
+
+------------------------------------------------------------------------
+
+13. ATTENDANCE MANAGEMENT FLOW
+
+13.1 Record Attendance
+
+Event Day → Admin buka event
+  → Klik tab "Attendance"
+  → Tampilkan daftar participant yang registration status = Confirmed
+  → Search participant berdasarkan nama
+  → Tap/klik toggle untuk menandai: Not Checked → Present
+  → Checked At timestamp tercatat otomatis
+
+13.2 Attendance Rules
+
+- Attendance hanya bisa ditandai untuk participant yang registration status-nya Confirmed.
+- Attendance record dibuat otomatis saat registration status berubah ke Confirmed.
+- Satu participant hanya memiliki satu attendance record per event.
+- Status attendance: Not Checked (default) atau Present.
+
+------------------------------------------------------------------------
+
+14. WHATSAPP NOTIFICATION FLOW
+
+14.1 Registration Confirmation
+
+Trigger: Payment berhasil (status → Paid).
+Penerima: Buyer (nomor telepon dari profil user).
+
+Informasi yang dikirim:
+- Detail event (nama, tanggal, waktu, lokasi).
+- Jumlah participant yang didaftarkan.
+- Status registrasi: Confirmed.
+- Link WhatsApp Community Group (jika ada).
+
+14.2 Event Reminder H-1
+
+Trigger: 1 hari sebelum event (dijalankan otomatis oleh scheduled job).
+Penerima: Semua buyer yang registrasinya Confirmed.
+
+Informasi yang dikirim:
+- Detail event (nama, tanggal, waktu, lokasi).
+- Guidebook / panduan event.
+- Rundown acara.
+- Barang bawaan.
+- Informasi lokasi dan petunjuk arah.
+
+14.3 Post Event Notification
+
+Trigger: Event status berubah ke Completed.
+Penerima: Semua buyer yang registrasinya Confirmed.
+
+Informasi yang dikirim:
+- Ucapan terima kasih.
+- Link feedback form (unique per participant). Satu pesan ke buyer berisi link untuk setiap participant yang hadir.
+- Link dokumentasi event (foto/video).
+
+14.4 Notification Failure
+
+Jika pengiriman gagal:
+- Status dicatat sebagai "failed" di sistem.
+- Tidak ada auto-retry pada MVP.
+- Admin dapat melihat notification status di dashboard untuk monitoring.
+
+------------------------------------------------------------------------
+
+15. ADMIN NOTIFICATION FLOW
+
+15.1 Notification Triggers
+
+Admin menerima in-app notification di dashboard saat:
+
+New Registration:
+- Trigger: registrasi baru masuk (status Pending).
+- Info: "[Nama buyer] mendaftar [X pax] untuk [Nama Event]".
+
+Payment Success:
+- Trigger: pembayaran berhasil diterima.
+- Info: "Pembayaran dari [Nama buyer] untuk [Nama Event] berhasil (Rp xxx)".
+
+Event Almost Full:
+- Trigger: kapasitas event tersisa 10% atau kurang.
+- Info: "[Nama Event] hampir penuh — tersisa [X] slot dari [Total] kapasitas".
+
+15.2 Notification Display
+
+Notification ditampilkan di:
+- Icon notifikasi di header dashboard (badge count untuk unread).
+- Dropdown notification list saat icon diklik.
+- Admin dapat menandai notification sebagai read.
+
+------------------------------------------------------------------------
+
+16. FEEDBACK MANAGEMENT FLOW
+
+16.1 Send Feedback Link
+
+Event status berubah ke Completed
+  → Sistem mengirim post-event notification via WhatsApp
+  → Notifikasi berisi link feedback form (unique per participant)
+
+16.2 Participant Submit Feedback
+
+Participant buka feedback link
+  → Tidak perlu login (link mengandung unique token)
+  → Tampilkan form:
+     - Rating (1-5, opsional; minimal salah satu field terisi)
+     - Comment (optional, maks 2000 karakter)
+     - Suggestion (optional, maks 2000 karakter)
+  → Submit
+  → Tampilkan halaman "Terima kasih atas feedback Anda"
+
+16.3 Feedback Rules
+
+- Feedback hanya dapat diisi oleh participant yang attendance status-nya Present.
+- Jika participant tidak hadir (Not Checked): link feedback menampilkan pesan "Feedback hanya tersedia untuk peserta yang hadir".
+- Satu participant hanya dapat mengisi feedback satu kali per event.
+- Jika sudah submit: link menampilkan pesan "Anda sudah mengisi feedback untuk event ini".
+- Feedback tidak dapat diedit setelah disubmit.
+
+16.4 Admin: View Feedback
+
+Admin buka event
+  → Klik tab "Feedback"
+  → Tampilkan:
+     - Average rating
+     - Total feedback received
+     - Daftar feedback (participant name, rating, comment, suggestion)
+
+------------------------------------------------------------------------
+
+17. MEMBER PROFILE & ATTENDANCE HISTORY FLOW
+
+17.1 View Profile
+
+User klik menu "Profile"
+  → Tampilkan:
+     - Name
+     - Email
+     - Phone Number
+     - Join Date
+
+Catatan: Semua peserta memiliki akun (termasuk auto-created), sehingga semua memiliki akses ke profil.
+
+17.2 View Event History
+
+User klik tab "Event History"
+  → Tampilkan daftar event yang pernah diikuti:
+     - Event Name
+     - Event Date
+     - Attendance Status (Present / Not Checked)
+
+------------------------------------------------------------------------
+
+18. DATA EXPORT FLOW
+
+Admin buka event
+  → Klik tab "Participants"
+  → Klik tombol "Export"
+  → Pilih format: Excel (.xlsx) atau CSV (.csv)
+  → File diunduh berisi:
+     - Participant Name
+     - Booking Owner
+     - Email
+     - Phone Number
+     - Payment Status
+     - Registration Status
+     - Attendance Status
+     - Add-on yang dibeli
+     - Total Payment
+
+------------------------------------------------------------------------
+
+19. DASHBOARD ANALYTICS FLOW
+
+Admin buka menu "Dashboard"
+
+19.1 Event Summary
+
+- Total event (semua status).
+- Upcoming event (Published, tanggal belum lewat).
+- Completed event.
+
+19.2 Registration Summary
+
+- Total participant terdaftar (per event dan keseluruhan).
+- Confirmed participant.
+- Pending participant.
+
+19.3 Payment Summary
+
+- Total revenue (pembayaran berstatus Paid).
+- Total paid transaction.
+- Outstanding payment (Pending Payment).
+
+19.4 Attendance Summary
+
+- Attendance rate per event (Present / Confirmed x 100%).
+
+19.5 Feedback Summary
+
+- Average rating per event.
+- Total feedback received per event.
+
+------------------------------------------------------------------------
+
+20. ERROR & EDGE CASE HANDLING
+
+20.1 Account Check Errors (Continue Without Login)
+
+- Phone number sudah terdaftar: "Nomor telepon ini sudah terdaftar, silakan login untuk melanjutkan." Redirect ke login options.
+- Email sudah terdaftar: "Email ini sudah terdaftar, silakan login untuk melanjutkan." Redirect ke login options.
+- Keduanya belum terdaftar: akun otomatis dibuat, lanjut registrasi.
+
+20.2 Registration Errors
+
+- Event penuh: tombol registrasi hilang. Jika diakses via direct URL, tampilkan pesan "Event sudah penuh".
+- Event belum published: halaman event tidak ditemukan (404).
+- Event sudah completed: tampilkan detail event dengan status "Event telah selesai", tanpa tombol registrasi.
+- Duplicate registration: "Anda sudah terdaftar pada event ini".
+- Slot tidak cukup untuk jumlah pax: "Slot tersisa hanya X, silakan kurangi jumlah peserta".
+
+20.3 Payment Errors
+
+- Payment gateway timeout: tampilkan pesan "Pembayaran gagal diproses, silakan coba kembali". Registrasi tetap Pending sampai deadline.
+- Payment expired (60 menit): registrasi status → Expired, slot/add-on/promo quota dikembalikan. Participant perlu registrasi ulang.
+- Double payment: ditangani di level payment gateway, sistem hanya memproses callback pertama.
+
+20.4 OTP Errors
+
+- OTP expired (>5 menit): "OTP sudah expired, silakan kirim ulang".
+- OTP salah 5 kali: "Terlalu banyak percobaan, silakan request OTP baru".
+- Rate limit (>3 request/15 menit): "Terlalu banyak permintaan, silakan tunggu 15 menit".
+
+20.5 Promo Code Errors
+
+- Kode tidak ditemukan: "Kode promo tidak valid".
+- Kode expired: "Kode promo sudah expired".
+- Quota habis: "Kode promo sudah habis".
+- Kode inactive: "Kode promo tidak aktif".
+
+20.6 Notification Errors
+
+- WhatsApp gagal terkirim: status "failed", tidak ada auto-retry. Admin monitor di dashboard.
+
+20.7 Upload Errors
+
+- File melebihi 5 MB: "Ukuran file terlalu besar, maksimum 5 MB".
+- Format tidak didukung: "Format file tidak didukung, gunakan JPG, PNG, atau WebP".
+
+------------------------------------------------------------------------
+
+21. SCOPE LIMITATION (MVP)
+
+Fitur berikut TIDAK termasuk dalam MVP:
+
+- Mobile application native.
+- Recurring event/class automation.
+- Community feed.
+- Chat community.
+- Membership subscription.
+- Loyalty point.
+- QR attendance (scan-based).
+- Multi-location management.
+- Multi-community management.
+- Global participant CRM.
+- Cancellation dan refund flow.
+- Notification auto-retry.
+- Waitlist (jika event penuh).
+- Multiple payment per registrasi.
+- Partial refund.

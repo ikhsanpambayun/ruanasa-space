@@ -1,0 +1,946 @@
+SYSTEM REQUIREMENT DOCUMENT (SRD)
+
+Ruanasa Space
+
+Version: 1.5 (Updated)
+Platform: Web-Based Responsive Application
+Target Device: Desktop Admin + Mobile Browser Participant
+Product Type: Wellness Event Management Platform
+
+------------------------------------------------------------------------
+
+1. SYSTEM OVERVIEW
+
+Ruanasa Space merupakan platform berbasis web untuk mengelola aktivitas wellness community secara end-to-end, mulai dari pembuatan event, publikasi aktivitas, registrasi peserta, pembayaran, pengelolaan peserta, pencatatan kehadiran, hingga feedback pasca-event.
+
+Pada MVP, sistem difokuskan untuk mendukung operasional Yoga Class sebagai aktivitas utama komunitas.
+
+------------------------------------------------------------------------
+
+2. SYSTEM SCOPE
+
+2.1 Participant Side
+
+- Melihat event tersedia dan detail event.
+- Login tanpa password (Google Login, Email OTP, WhatsApp OTP) atau continue without login (auto-create account).
+- Registrasi event termasuk multi-participant registration (>1 pax).
+- Memilih add-on per event.
+- Menggunakan promo code.
+- Mendapatkan early bird discount (otomatis berdasarkan periode).
+- Mendapatkan bundle discount (otomatis berdasarkan jumlah pax).
+- Pembayaran melalui QRIS atau bank transfer.
+- Mendapatkan WhatsApp confirmation, event reminder H-1, dan post-event notification.
+- Mengisi feedback setelah event selesai.
+- Melihat profil, riwayat event, dan attendance history.
+
+2.2 Admin Side
+
+- Login ke dashboard admin (email + password).
+- Mengelola instructor dan specialization.
+- Membuat dan mengelola event.
+- Menggunakan event template atau duplicate event.
+- Mengelola add-on per event.
+- Mengelola discount (promo code dan early bird).
+- Mengelola pricing rules (bundle discount).
+- Mempublikasikan event dan membagikan melalui public URL dan QR Code.
+- Melihat dan mengelola participant list per event.
+- Memantau dan mengelola status pembayaran.
+- Mengelola attendance (Not Checked / Present).
+- Menerima admin notification (new registration, payment success, event almost full).
+- Mengirim follow-up pasca-event.
+- Export data peserta ke Excel/CSV.
+- Melihat dashboard analytics.
+
+------------------------------------------------------------------------
+
+3. USER ROLE
+
+3.1 Admin
+
+Mengelola seluruh operasional event wellness. Mengakses platform melalui dashboard admin di desktop browser.
+
+3.2 Participant
+
+Mengikuti aktivitas wellness dan melakukan registrasi. Mengakses platform melalui mobile atau desktop browser.
+
+Catatan penting: User dan Participant adalah entitas berbeda.
+- User: orang yang memiliki akun dan melakukan transaksi (buyer). Semua peserta yang mendaftar event pasti memiliki akun user (baik melalui login eksplisit maupun auto-create).
+- Participant: orang yang hadir dalam event. Satu user bisa mendaftarkan beberapa participant.
+
+3.3 Primary Identifier
+
+Nomor telepon adalah identifikasi utama user di Ruanasa Space. Digunakan sebagai primary lookup saat pengecekan akun existing, diikuti email sebagai secondary check. Kedua field bersifat unique di tabel users.
+
+------------------------------------------------------------------------
+
+4. AUTHENTICATION REQUIREMENT
+
+4.1 Authentication Method
+
+Sistem menggunakan passwordless authentication untuk participant.
+
+Metode autentikasi:
+- Google Login (OAuth 2.0)
+- Email OTP
+- WhatsApp OTP
+- Continue Without Login (auto-create account)
+
+Admin menggunakan email dan password untuk login ke dashboard.
+
+4.2 Continue Without Login — Auto Account Creation
+
+Flow:
+1. Peserta memilih "Continue Without Login".
+2. Peserta mengisi data: Name, Phone Number (wajib, primary), Email (wajib, secondary).
+3. Sistem mengecek phone_number di tabel users.
+4. Jika phone_number ditemukan: tampilkan pesan "Nomor telepon ini sudah terdaftar, silakan login untuk melanjutkan." Arahkan ke halaman login.
+5. Jika phone_number tidak ditemukan: sistem mengecek email di tabel users.
+6. Jika email ditemukan: tampilkan pesan "Email ini sudah terdaftar, silakan login untuk melanjutkan." Arahkan ke halaman login.
+7. Jika keduanya tidak ditemukan: buat akun baru otomatis dengan auth_provider = 'auto_created'. Peserta langsung mendapatkan session aktif dan lanjut ke registrasi.
+
+Catatan: Tidak ada konsep guest tanpa akun. Semua peserta yang mendaftar event akan memiliki akun di tabel users.
+
+4.3 User Data
+
+- User ID (UUID, auto-generated)
+- Name (wajib)
+- Phone Number (wajib, unique, primary identifier)
+- Email (wajib, unique, secondary identifier)
+- Authentication Method (google / email_otp / whatsapp_otp / auto_created)
+- Role (admin / participant)
+- Profile Picture (optional)
+- Created Date
+- Updated Date
+
+4.4 Session Management
+
+- Session berlaku selama 7 hari sejak login terakhir (sliding expiration).
+- Jika session expired, user perlu login ulang.
+- User yang dibuat melalui auto-create langsung mendapatkan session aktif.
+- Satu user dapat memiliki satu session aktif per device.
+
+4.5 OTP Specification
+
+- OTP terdiri dari 6 digit angka.
+- OTP berlaku selama 5 menit sejak dikirim.
+- Maksimum 5 percobaan OTP yang salah, setelah itu user harus request OTP baru.
+- Maksimum 3 request OTP dalam 15 menit (rate limiting).
+- OTP dikirim melalui Email (SMTP) atau WhatsApp (WhatsApp Business API / third-party provider).
+
+4.6 Account Linking Scenario
+
+Jika user awalnya dibuat melalui auto_created, kemudian di kemudian hari login menggunakan Google/Email OTP/WhatsApp OTP dengan email atau phone yang sama, sistem mengenali akun existing dan login ke akun tersebut. Field auth_provider diupdate ke metode login terbaru.
+
+------------------------------------------------------------------------
+
+5. USER MANAGEMENT
+
+5.1 User Data
+
+- User ID (UUID)
+- Name
+- Phone Number (unique, primary identifier)
+- Email (unique, secondary identifier)
+- Auth Provider (google / email_otp / whatsapp_otp / auto_created)
+- Role (admin / participant)
+- Password Hash (nullable — hanya untuk admin)
+- Profile Picture (optional, URL)
+- Created At (timestamp)
+- Updated At (timestamp)
+- Deleted At (timestamp, nullable — soft delete)
+
+5.2 Role-Based Access Control
+
+- Admin: dapat mengakses seluruh fitur dashboard admin (event, instructor, participant, payment, attendance, analytics, export).
+- Participant: hanya dapat mengakses halaman event, registrasi, pembayaran, feedback, dan profil sendiri.
+
+------------------------------------------------------------------------
+
+6. EVENT MANAGEMENT
+
+6.1 Event Data
+
+- Event ID (UUID)
+- Template ID (nullable, FK ke event_templates)
+- Instructor ID (FK ke instructors)
+- Event Name (wajib, maks 150 karakter)
+- Activity Type (wajib, contoh: Yoga, Pilates, Meditation)
+- Description (wajib, maks 5000 karakter)
+- Poster URL (wajib, image file)
+- Date (wajib sebelum publish; boleh kosong pada draft hasil duplicate)
+- Start Time (wajib sebelum publish; boleh kosong pada draft hasil duplicate)
+- End Time (wajib sebelum publish; boleh kosong pada draft hasil duplicate)
+- Location (wajib, maks 500 karakter)
+- Capacity (wajib, integer, minimum 1)
+- Status (Draft / Published / Completed)
+- Completed At (timestamp, nullable — diisi otomatis saat status berubah ke Completed)
+- Post Event Sent (boolean, default false — flag apakah post-event notification sudah dikirim)
+- Created At
+- Updated At
+
+6.2 Event Status Flow
+
+- Draft: Event dibuat tapi belum dipublikasikan. Tidak terlihat oleh participant.
+- Published: Event aktif dan dapat diakses participant melalui public URL atau QR Code. Registrasi terbuka.
+- Completed: Event telah selesai dilaksanakan. Registrasi tertutup. Feedback collection aktif.
+
+Transisi status yang diperbolehkan:
+- Draft → Published
+- Published → Completed
+- Draft → (delete, hanya draft yang bisa dihapus)
+
+6.3 Event Distribution
+
+Event yang berstatus Published dapat dibagikan melalui:
+- Public URL (format: ruanasaspace.com/events/{event-id})
+- QR Code (generated otomatis dari public URL)
+
+6.4 Poster Upload Specification
+
+- Format yang diterima: JPG, JPEG, PNG, WebP.
+- Maksimum file size: 5 MB.
+- Rekomendasi dimensi: 1080 x 1350 px (rasio 4:5, optimal untuk mobile).
+- Poster disimpan di cloud storage dan disajikan melalui CDN URL.
+
+------------------------------------------------------------------------
+
+7. EVENT TEMPLATE & DUPLICATE
+
+7.1 Event Template
+
+Template menyimpan konfigurasi event yang bisa digunakan ulang.
+
+Template Data:
+- Template ID (UUID)
+- Template Name
+- Activity Type
+- Description
+- Instructor ID (FK)
+- Created At
+
+Flow: Create Event → Choose Template → Data auto-fill dari template → Edit Detail → Publish.
+
+Catatan: Template pada MVP tidak menyimpan add-on dan pricing. Admin perlu mengatur add-on dan pricing secara manual setelah memilih template.
+
+7.2 Duplicate Event
+
+Admin dapat membuat event baru berdasarkan event sebelumnya.
+
+Flow: Select Existing Event → Duplicate Event → Semua data ter-copy (kecuali tanggal, registrasi, dan participant) → Update Information → Publish.
+
+Data yang ter-copy saat duplicate:
+- Event Name, Activity Type, Description, Poster, Instructor, Capacity, Location.
+- Add-on configuration.
+- Pricing configuration (event prices dan pricing rules).
+
+Data yang TIDAK ter-copy:
+- Date, Start Time, End Time (dikosongkan; wajib diisi ulang sebelum publish).
+- Registrations, Participants, Payments, Attendance (reset kosong).
+- Status (dimulai dari Draft).
+
+------------------------------------------------------------------------
+
+8. INSTRUCTOR MANAGEMENT
+
+8.1 Instructor Data
+
+- Instructor ID (UUID)
+- Instructor Name (wajib, maks 100 karakter)
+- Profile Picture (optional, URL)
+- Bio (optional, maks 2000 karakter)
+- Contact Information (optional, maks 500 karakter)
+- Status (Active / Inactive)
+- Created At
+- Updated At
+
+8.2 Specialization
+
+Setiap instructor dapat memiliki satu atau lebih specialization (many-to-many).
+
+Specialization Data:
+- Specialization ID (UUID)
+- Name (contoh: Vinyasa Yoga, Hatha Yoga, Meditation, Breathwork)
+- Created At
+
+Mapping: instructor_specialization_mapping (instructor_id, specialization_id).
+
+8.3 Instructor Usage Rule
+
+- Hanya instructor berstatus Active yang tampil sebagai pilihan saat membuat event.
+- Instructor yang berstatus Inactive tidak dapat dipilih untuk event baru, tapi tetap muncul di event lama yang sudah dibuat.
+- Instructor tidak dapat dihapus jika masih terhubung dengan event yang berstatus Published.
+
+------------------------------------------------------------------------
+
+9. REGISTRATION MANAGEMENT
+
+9.1 Registration Flow
+
+Open Event → Login / Continue Without Login (auto-create account jika baru) → Fill Participant Data → Select Pax → Add Participant Name (jika >1 pax) → Select Add-on → Apply Discount → Review Order → Payment → Payment Verification → Registration Confirmed.
+
+9.2 Registration Data
+
+- Registration ID (UUID)
+- Event ID (FK)
+- Buyer User ID (FK ke users — selalu terisi karena semua peserta punya akun)
+- Total Pax (integer, minimum 1)
+- Subtotal (harga sebelum discount)
+- Discount Amount (nilai potongan)
+- Total Payment (jumlah yang harus dibayar)
+- Discount Code ID (nullable, FK ke discount_codes)
+- Payment Status (Pending Payment / Paid / Expired)
+- Registration Status (Pending / Confirmed / Expired)
+- Payment Deadline (timestamp, batas waktu pembayaran)
+- Created At
+
+9.3 Registration Behavior
+
+- Jika user sudah login: data (nama, email, phone) otomatis terisi dari profil user.
+- Jika continue without login: user mengisi data manual. Sistem cek phone dan email → jika baru, buat akun → jika sudah ada, minta login.
+- Setelah akun terverifikasi/dibuat: buyer_user_id selalu terisi.
+
+9.4 Multi-Participant Registration
+
+- Satu registrasi dapat mendaftarkan lebih dari 1 participant.
+- Participant pertama (buyer) mengisi data lengkap: Name, Email, Phone Number.
+- Participant tambahan hanya wajib mengisi Name.
+- Setiap participant terhubung ke registrasi melalui tabel participants.
+- Buyer: participant record terhubung ke user_id, is_buyer = TRUE.
+- Peserta tambahan: user_id = NULL, is_buyer = FALSE.
+
+9.5 Registration Validation
+
+- User tidak dapat mendaftar pada event yang sama lebih dari satu kali (unique constraint: event_id + buyer_user_id, berlaku untuk registrasi aktif: bukan expired, bukan soft-deleted). Registrasi yang expired tidak dihitung; user boleh mendaftar ulang.
+- Registrasi tidak dapat dilakukan jika event sudah penuh (slot habis).
+- Registrasi tidak dapat dilakukan jika event berstatus Draft atau Completed.
+- Phone number harus valid format Indonesia (+62 atau 08).
+- Email harus valid format.
+
+------------------------------------------------------------------------
+
+10. CAPACITY & SLOT MANAGEMENT
+
+10.1 Capacity Calculation
+
+Kapasitas dihitung berdasarkan jumlah participant (bukan per booking/registrasi).
+
+Contoh:
+- Event capacity: 30 participant.
+- Sarah mendaftar 3 pax → slot terpakai: 3, sisa slot: 27.
+- Budi mendaftar 2 pax → slot terpakai: 5, sisa slot: 25.
+
+10.2 Capacity Rules
+
+- Jika sisa slot = 0: registrasi otomatis disabled, tombol registrasi tidak muncul.
+- Jika sisa slot < jumlah pax yang dipilih: registrasi ditolak dengan pesan error.
+- Saat payment expired dan registrasi dibatalkan: slot otomatis dikembalikan.
+- Slot dihitung real-time berdasarkan registrasi berstatus Pending + Confirmed.
+
+10.3 Concurrent Booking Handling
+
+- Saat peserta memulai registrasi, slot belum di-lock (optimistic approach).
+- Slot di-lock saat registrasi berhasil dibuat (status Pending).
+- Jika dua peserta secara bersamaan mencoba slot terakhir, sistem menggunakan database-level locking untuk mencegah overbooking. Peserta yang lebih dulu submit akan mendapatkan slot, peserta lainnya mendapat pesan "slot sudah penuh".
+
+------------------------------------------------------------------------
+
+11. ADD-ON MANAGEMENT
+
+11.1 Add-on Data
+
+- Add-on ID (UUID)
+- Event ID (FK)
+- Name (wajib, maks 100 karakter)
+- Description (optional, maks 500 karakter)
+- Price (wajib, integer, dalam Rupiah)
+- Available Quantity (wajib, integer)
+- Maximum Purchase Quantity per registrasi (wajib, integer)
+- Status (Active / Inactive)
+- Created At
+
+11.2 Add-on Flow
+
+- Admin membuat add-on dan mengaitkannya ke event.
+- Participant memilih add-on saat registrasi dan mengatur quantity.
+- Sistem menghitung subtotal add-on dan menambahkannya ke total pembayaran.
+- Available quantity berkurang saat registrasi dibuat (bukan saat payment confirmed).
+- Jika registrasi expired, available quantity dikembalikan.
+- Jika available quantity = 0: add-on tidak ditampilkan.
+
+11.3 Registration Add-on Data
+
+- Registration Add-on ID (UUID)
+- Registration ID (FK)
+- Add-on ID (FK)
+- Quantity (integer)
+- Subtotal (price x quantity)
+
+------------------------------------------------------------------------
+
+12. DISCOUNT MANAGEMENT
+
+12.1 Promo Code
+
+Discount Code Data:
+- Discount Code ID (UUID)
+- Code (unique, alphanumeric, maks 20 karakter)
+- Discount Type (Percentage / Fixed Amount)
+- Discount Value (integer)
+- Quota (integer, jumlah penggunaan yang diperbolehkan)
+- Used Count (integer, jumlah penggunaan terpakai)
+- Expiry Date (date)
+- Status (Active / Inactive)
+
+Promo Code Rules:
+- Peserta memasukkan kode promo saat registrasi.
+- Sistem memvalidasi: kode valid, belum expired, quota belum habis, status Active.
+- Jika valid: discount diterapkan ke subtotal.
+- Satu registrasi hanya dapat menggunakan satu promo code.
+- Used count bertambah saat registrasi dibuat (bukan saat payment confirmed). Jika registrasi expired, used count dikembalikan.
+
+12.2 Early Bird Discount
+
+Event Prices Data:
+- Event Price ID (UUID)
+- Event ID (FK)
+- Price Type (Normal / Early Bird)
+- Price (integer, dalam Rupiah)
+- Start Date
+- End Date
+- Status (Active / Inactive)
+- Created At
+
+Early Bird Rules:
+- Sistem mengecek tanggal registrasi terhadap periode early bird.
+- Jika dalam periode early bird: harga early bird otomatis diterapkan.
+- Jika di luar periode: harga normal yang berlaku.
+- Tidak perlu input dari peserta.
+
+12.3 Bundle Discount (Pricing Rules)
+
+Event Pricing Rules Data:
+- Pricing Rule ID (UUID)
+- Event ID (FK)
+- Rule Type (Bundle)
+- Minimum Quantity (integer, jumlah pax minimum)
+- Discount Type (Percentage / Fixed Amount)
+- Discount Value (integer)
+- Status (Active / Inactive)
+- Created At
+
+Bundle Discount Rules:
+- Sistem mengecek jumlah pax yang didaftarkan.
+- Jika memenuhi minimum quantity: discount otomatis diterapkan.
+- Contoh: 2 pax = 10%, 3 pax = 15%.
+- Bundle discount dan promo code dapat digunakan bersamaan.
+
+12.4 Discount Priority & Stacking
+
+Urutan penerapan discount pada MVP:
+1. Harga dasar ditentukan dari Event Prices (Normal atau Early Bird).
+2. Bundle discount diterapkan jika memenuhi syarat minimum pax.
+3. Promo code diterapkan jika valid.
+
+Semua discount dapat di-stack (diterapkan bersamaan). Total payment tidak boleh kurang dari Rp0.
+
+------------------------------------------------------------------------
+
+13. PAYMENT MANAGEMENT
+
+13.1 Payment Method
+
+- QRIS
+- Bank Transfer
+
+Pembayaran diproses melalui payment gateway (contoh: Midtrans, Xendit, atau sejenisnya).
+
+13.2 Payment Flow
+
+Registration Created → Generate Transaction (kirim ke payment gateway) → Participant Select Payment Method → Payment Process → Payment Gateway Callback → Update Payment Status → Update Registration Status → Send WhatsApp Confirmation. Participant dapat mengganti metode pembayaran selama pembayaran masih pending.
+
+13.3 Payment Data
+
+- Payment ID (UUID)
+- Registration ID (FK)
+- Payment Method (QRIS / Bank Transfer)
+- Transaction ID (dari payment gateway)
+- Amount (integer, dalam Rupiah)
+- Status (Pending Payment / Paid / Expired)
+- Paid At (timestamp, nullable)
+- Created At
+
+13.4 Payment Status
+
+- Pending Payment: menunggu pembayaran dari peserta.
+- Paid: pembayaran berhasil diverifikasi oleh payment gateway.
+- Expired: batas waktu pembayaran terlewati.
+
+13.5 Registration Status
+
+- Pending: registrasi dibuat, menunggu pembayaran.
+- Confirmed: pembayaran berhasil, registrasi dikonfirmasi otomatis.
+- Expired: pembayaran tidak diselesaikan dalam batas waktu.
+
+13.6 Payment Expiration
+
+- Payment memiliki batas waktu (default: 60 menit sejak registrasi dibuat).
+- Jika pembayaran tidak diselesaikan dalam batas waktu:
+  - Registration status → expired.
+  - Slot dikembalikan ke kapasitas event.
+  - Add-on quantity dikembalikan.
+  - Promo code used count dikembalikan (jika digunakan).
+- Expiration dijalankan oleh scheduled job (cron) yang berjalan setiap 5 menit.
+
+13.7 Payment Gateway Integration
+
+- Sistem menggunakan payment gateway untuk memproses transaksi.
+- Payment gateway mengirimkan callback (webhook) ke sistem saat pembayaran berhasil.
+- Sistem memvalidasi callback signature untuk keamanan.
+- Jika callback gagal diterima, sistem menyediakan endpoint untuk manual check status ke payment gateway.
+
+------------------------------------------------------------------------
+
+14. PARTICIPANT MANAGEMENT
+
+14.1 Participant Scope
+
+Participant list bersifat event-based (bukan global CRM). Setiap event memiliki participant list tersendiri.
+
+14.2 Participant Data
+
+- Participant ID (UUID)
+- Registration ID (FK)
+- User ID (nullable, FK ke users — null untuk peserta tambahan)
+- Name
+- Is Buyer (boolean — menandai apakah participant ini buyer)
+- Created At
+
+14.3 Participant List View (Admin)
+
+Admin melihat participant list per event dengan data:
+- Participant Name
+- Booking Owner (nama buyer)
+- Email (dari user profil buyer)
+- Phone Number (dari user profil buyer)
+- Payment Status (dari registrasi)
+- Registration Status (dari registrasi)
+- Attendance Status (dari attendance record)
+
+14.4 Admin Capability
+
+- Search participant berdasarkan nama, email, atau phone number.
+- Filter participant berdasarkan payment status, registration status, atau attendance status.
+- Export participant list ke Excel/CSV.
+- Update attendance status.
+
+------------------------------------------------------------------------
+
+15. ATTENDANCE MANAGEMENT
+
+15.1 Attendance Data
+
+- Attendance ID (UUID)
+- Event ID (FK)
+- Participant ID (FK)
+- Status (Not Checked / Present)
+- Checked At (timestamp, nullable)
+
+15.2 Attendance Status
+
+- Not Checked: default, belum dicek kehadirannya.
+- Present: hadir pada event, ditandai oleh admin.
+
+15.3 Attendance Flow
+
+Event Day → Admin Open Participant List → Search Participant → Mark Attendance (toggle Not Checked → Present).
+
+15.4 Attendance Rules
+
+- Attendance hanya dapat ditandai untuk participant yang registration status-nya Confirmed.
+- Attendance record dibuat otomatis (status: Not Checked) saat registration status berubah menjadi Confirmed.
+- Satu participant hanya memiliki satu attendance record per event (unique constraint: event_id + participant_id).
+
+------------------------------------------------------------------------
+
+16. WHATSAPP NOTIFICATION
+
+16.1 Registration Confirmation
+
+Trigger: Payment berhasil (status berubah ke Paid).
+Penerima: Buyer (nomor telepon dari user profil).
+
+Informasi yang dikirim:
+- Detail event (nama, tanggal, waktu, lokasi).
+- Jumlah participant yang didaftarkan.
+- Status registrasi (Confirmed).
+- Link WhatsApp Community Group (jika ada).
+
+16.2 Event Reminder H-1
+
+Trigger: 1 hari sebelum event (dijalankan oleh scheduled job).
+Penerima: Semua buyer yang registrasinya Confirmed pada event tersebut.
+
+Informasi yang dikirim:
+- Detail event (nama, tanggal, waktu, lokasi).
+- Guidebook / panduan event.
+- Rundown acara.
+- Barang bawaan.
+- Informasi lokasi dan petunjuk arah.
+
+16.3 Post Event Notification
+
+Trigger: Otomatis saat event status berubah ke Completed (asinkron). Job harian berfungsi sebagai catch-up untuk event Completed dengan post_event_sent = false. Sistem mengirim notification kemudian set post_event_sent = true. Admin juga dapat trigger manual.
+Penerima: Semua buyer yang registrasinya Confirmed pada event tersebut.
+
+Informasi yang dikirim:
+- Ucapan terima kasih.
+- Satu pesan WA per buyer berisi link feedback untuk setiap participant miliknya yang attendance = Present.
+- Link dokumentasi event (foto/video).
+
+16.4 Notification Data
+
+- Notification ID (UUID)
+- User ID (FK, NOT NULL — selalu terisi karena semua peserta punya akun. Phone number diambil dari users.phone_number via JOIN.)
+- Event ID (FK, nullable)
+- Registration ID (FK, nullable)
+- Type (registration_confirmation / event_reminder / post_event / admin_new_registration / admin_payment_success / admin_event_almost_full)
+- Channel (whatsapp / in_app)
+- Message (text content)
+- Status (pending / sent / failed)
+- Is Read (boolean, default false — untuk in-app notification admin)
+- Sent At (timestamp, nullable)
+- Read At (timestamp, nullable — diisi saat admin membaca notifikasi)
+- Created At
+
+16.5 Notification Failure Handling
+
+- Jika pengiriman gagal, sistem mencatat status sebagai "failed".
+- Sistem tidak melakukan auto-retry pada MVP.
+- Admin dapat melihat notification status di dashboard untuk monitoring.
+
+------------------------------------------------------------------------
+
+17. ADMIN NOTIFICATION
+
+17.1 Trigger
+
+Admin menerima notifikasi saat:
+- New Registration: ada registrasi baru yang masuk (status Pending).
+- Payment Success: pembayaran berhasil diterima.
+- Event Almost Full: kapasitas event tersisa 10% atau kurang.
+
+17.2 Delivery Method
+
+Pada MVP, admin notification ditampilkan di dalam dashboard admin (in-app notification). Notification disimpan di tabel notifications dengan user_id = admin user ID dan channel = 'in_app'.
+
+------------------------------------------------------------------------
+
+18. FEEDBACK MANAGEMENT
+
+18.1 Feedback Flow
+
+Event status berubah ke Completed → Kirim feedback link via WhatsApp (post-event notification) → Participant membuka link → Submit feedback form → Data tersimpan.
+
+18.2 Feedback Data
+
+- Feedback ID (UUID)
+- Event ID (FK)
+- Participant ID (FK)
+- Token (unique, untuk akses form tanpa login)
+- Rating (integer, skala 1-5, optional — participant bisa submit hanya dengan comment/suggestion)
+- Comment (optional, maks 2000 karakter)
+- Suggestion (optional, maks 2000 karakter)
+- Submitted At (timestamp, nullable — diisi saat participant submit feedback)
+- Created At (saat record dibuat, yaitu payment confirmed)
+
+18.3 Feedback Rules
+
+- Feedback hanya dapat diisi oleh participant yang attendance status-nya Present.
+- Satu participant hanya dapat mengisi feedback satu kali per event (unique constraint: event_id + participant_id).
+- Feedback form dapat diakses tanpa login (menggunakan unique token/link per participant).
+- Feedback tidak dapat diedit setelah disubmit.
+- Feedback dianggap sudah disubmit jika Submitted At terisi.
+
+------------------------------------------------------------------------
+
+19. MEMBER PROFILE & ATTENDANCE HISTORY
+
+19.1 Profile Data
+
+Setiap user memiliki profil yang menyimpan:
+- Name
+- Email
+- Phone Number
+- Profile Picture (optional)
+- Join Date (tanggal akun dibuat)
+
+Catatan: Semua peserta memiliki akun (termasuk yang mendaftar melalui continue without login), sehingga semua peserta memiliki akses ke profil dan riwayat.
+
+19.2 Event History
+
+User dapat melihat daftar event yang pernah diikuti, mencakup:
+- Event Name
+- Event Date
+- Attendance Status (hadir / tidak hadir)
+
+19.3 Attendance History
+
+Riwayat kehadiran per event yang pernah didaftarkan. Data diambil dari relasi: User → Registrations → Participants → Attendance.
+
+------------------------------------------------------------------------
+
+20. DATA EXPORT
+
+20.1 Export Format
+
+- Excel (.xlsx)
+- CSV (.csv)
+
+20.2 Export Scope
+
+Data diexport per event. Admin memilih event, lalu export participant list.
+
+20.3 Export Fields
+
+- Participant Name
+- Booking Owner
+- Email
+- Phone Number
+- Payment Status
+- Registration Status
+- Attendance Status
+- Add-on yang dibeli
+- Total Payment
+
+------------------------------------------------------------------------
+
+21. DASHBOARD ANALYTICS
+
+21.1 Event Summary
+
+- Total event (semua status).
+- Upcoming event (status Published, tanggal belum lewat).
+- Completed event (status Completed).
+
+21.2 Registration Summary
+
+- Total participant terdaftar (per event dan keseluruhan).
+- Confirmed participant (registrasi status Confirmed).
+- Pending participant (registrasi status Pending).
+
+21.3 Payment Summary
+
+- Total revenue (jumlah total pembayaran berstatus Paid).
+- Total paid transaction (jumlah transaksi berstatus Paid).
+- Outstanding payment (jumlah transaksi berstatus Pending Payment).
+
+21.4 Attendance Summary
+
+- Attendance rate per event (jumlah Present / jumlah Confirmed x 100%).
+
+21.5 Feedback Summary
+
+- Average rating per event.
+- Total feedback received per event.
+
+------------------------------------------------------------------------
+
+22. DATABASE RELATIONSHIP OVERVIEW
+
+22.1 Core Relationship
+
+User → Registration (1:N — satu user bisa punya banyak registrasi)
+Event → Registration (1:N — satu event bisa punya banyak registrasi)
+Registration → Participant (1:N — satu registrasi bisa punya banyak participant)
+Registration → Payment (1:1 — satu registrasi memiliki satu payment)
+Participant → Attendance (1:1 per event — satu participant satu record attendance per event)
+Participant → Feedback (1:1 per event — satu participant satu feedback per event)
+
+22.2 Supporting Relationship
+
+Instructor → Event (1:N — satu instructor bisa mengajar banyak event)
+Instructor ↔ Specialization (N:M — melalui mapping table)
+Event Template → Event (1:N — satu template bisa digunakan banyak event)
+Event → Event Prices (1:N — satu event bisa punya harga normal dan early bird)
+Event → Event Pricing Rules (1:N — satu event bisa punya beberapa aturan bundle)
+Event → Add-on (1:N — satu event bisa punya banyak add-on)
+Registration → Registration Add-on (1:N — satu registrasi bisa punya banyak add-on)
+Registration → Discount Code (N:1 — banyak registrasi bisa pakai satu discount code)
+
+------------------------------------------------------------------------
+
+23. DATA VALIDATION RULES
+
+23.1 User & Registration Data
+
+- Name: wajib, maks 100 karakter, huruf dan spasi saja.
+- Phone Number: wajib, unique, format Indonesia (+62xxx atau 08xxx), 10-15 digit. Primary identifier.
+- Email: wajib, unique, format email valid (RFC 5322). Secondary identifier.
+
+23.2 Event Data
+
+- Event Name: wajib, maks 150 karakter.
+- Description: wajib, maks 5000 karakter.
+- Location: wajib, maks 500 karakter.
+- Capacity: wajib, integer, minimum 1.
+- Date: wajib sebelum publish, tidak boleh tanggal yang sudah lewat (untuk event baru).
+- Start Time: wajib sebelum publish, harus sebelum End Time.
+- Poster: wajib, JPG/JPEG/PNG/WebP, maks 5 MB.
+
+23.3 Pricing & Discount
+
+- Price: integer, minimum 0, dalam Rupiah.
+- Discount Value: integer, minimum 1. Jika percentage, maksimum 100.
+- Promo Code: alphanumeric, maks 20 karakter, unique, case-insensitive.
+- Quota: integer, minimum 1.
+- Expiry Date: harus tanggal di masa depan saat pembuatan.
+
+23.4 Add-on
+
+- Name: wajib, maks 100 karakter.
+- Price: integer, minimum 0.
+- Available Quantity: integer, minimum 0.
+- Max Purchase Quantity: integer, minimum 1.
+
+23.5 Feedback
+
+- Rating: integer, skala 1-5.
+- Comment: optional, maks 2000 karakter.
+- Suggestion: optional, maks 2000 karakter.
+
+------------------------------------------------------------------------
+
+24. ERROR HANDLING & EDGE CASES
+
+24.1 Account Duplicate Check (Continue Without Login)
+
+- Phone number sudah terdaftar: "Nomor telepon ini sudah terdaftar, silakan login untuk melanjutkan." Redirect ke login.
+- Email sudah terdaftar: "Email ini sudah terdaftar, silakan login untuk melanjutkan." Redirect ke login.
+- Phone dan email belum terdaftar: akun otomatis dibuat, lanjut registrasi.
+
+24.2 Payment Errors
+
+- Payment gateway timeout: sistem menampilkan pesan error dan menyarankan peserta mencoba kembali. Registrasi tetap berstatus Pending sampai deadline.
+- Payment gateway callback gagal: sistem menyediakan endpoint manual check ke payment gateway. Admin dapat trigger manual check dari dashboard.
+- Double payment (peserta membayar dua kali): ditangani di level payment gateway. Sistem hanya memproses callback pertama yang valid.
+
+24.3 Registration Errors
+
+- Duplicate registration: ditolak berdasarkan unique constraint (event_id + buyer_user_id, registrasi aktif: bukan expired, bukan soft-deleted). Pesan: "Anda sudah terdaftar pada event ini".
+- Concurrent booking (race condition): ditangani dengan database-level locking. Peserta yang kalah race mendapat pesan "Slot sudah penuh".
+- Registrasi saat event penuh: tombol registrasi tidak muncul. Jika diakses langsung via API, sistem menolak dengan error "Event sudah penuh".
+
+24.4 OTP Errors
+
+- OTP expired: peserta diminta request OTP baru.
+- OTP salah berkali-kali (>5 kali): OTP session tidak berlaku lagi, peserta harus request OTP baru (tetap tunduk pada rate limit 3 request per 15 menit).
+- Request OTP terlalu sering (>3 dalam 15 menit): rate limit aktif, peserta diminta menunggu.
+
+24.5 Notification Errors
+
+- WhatsApp notification gagal terkirim: dicatat sebagai status "failed" di tabel notifications. Tidak ada auto-retry di MVP.
+
+24.6 General Errors
+
+- Upload file melebihi batas ukuran: ditolak dengan pesan error.
+- Format file tidak sesuai: ditolak dengan pesan error.
+- Input melebihi karakter maksimum: ditolak dengan pesan error di field yang bersangkutan.
+- Session expired: redirect ke halaman login.
+
+------------------------------------------------------------------------
+
+25. NON-FUNCTIONAL REQUIREMENT
+
+25.1 Performance
+
+- Page load time: target < 3 detik pada koneksi 4G.
+- API response time: target < 500ms untuk operasi standar.
+- Sistem harus mendukung minimal 100 concurrent users saat peak registration.
+- Image/poster loading menggunakan lazy loading dan CDN.
+
+25.2 Security
+
+- Seluruh komunikasi menggunakan HTTPS (SSL/TLS).
+- Password admin di-hash menggunakan bcrypt.
+- OTP di-hash sebelum disimpan di database.
+- Payment gateway callback divalidasi menggunakan signature verification.
+- Session token menggunakan JWT dengan expiration.
+- Input sanitization dan parameterized queries untuk mencegah SQL injection.
+- XSS protection pada seluruh input field.
+- Rate limiting pada endpoint login, OTP, registrasi, dan auto-create account.
+- Data personal (email, phone) di-encrypt at rest.
+
+25.3 Availability
+
+- Target uptime: 99.5% (memperbolehkan downtime ~3.65 jam per bulan).
+- Scheduled maintenance dilakukan di luar jam event (malam hari).
+
+25.4 Compatibility
+
+- Browser support: Chrome (2 versi terakhir), Safari (2 versi terakhir), Firefox (2 versi terakhir), Edge (2 versi terakhir).
+- Mobile: responsive design, minimum viewport width 360px.
+- Desktop: minimum viewport width 1280px untuk admin dashboard.
+
+25.5 Scalability
+
+- Arsitektur harus mendukung penambahan activity type di masa depan tanpa perubahan struktur database.
+- Sistem harus dapat di-scale secara horizontal (menambah server instance) jika jumlah user meningkat.
+- Database indexing diterapkan pada field yang sering di-query (event_id, buyer_user_id, status fields, phone_number, email, promo code).
+
+------------------------------------------------------------------------
+
+26. INTEGRATION REQUIREMENT
+
+26.1 Payment Gateway
+
+- Provider: Midtrans, Xendit, atau sejenisnya (ditentukan saat development).
+- Metode yang didukung: QRIS dan Bank Transfer.
+- Integrasi melalui REST API.
+- Callback/webhook URL disediakan untuk menerima notifikasi pembayaran.
+- Callback signature divalidasi untuk keamanan.
+
+26.2 WhatsApp Notification
+
+- Provider: WhatsApp Business API (official) atau third-party provider (Fonnte, Wablas, atau sejenisnya).
+- Integrasi melalui REST API.
+- Message template harus di-approve terlebih dahulu oleh provider (jika menggunakan official API).
+
+26.3 Google OAuth
+
+- Menggunakan Google OAuth 2.0 untuk Google Login.
+- Scope: email dan profile.
+- Redirect URI dikonfigurasi di Google Cloud Console.
+
+26.4 Email OTP
+
+- Pengiriman OTP via email menggunakan SMTP provider (SendGrid, Mailgun, atau sejenisnya).
+- Email dikirim dari domain resmi Ruanasa (contoh: noreply@ruanasaspace.com).
+
+26.5 Cloud Storage
+
+- Poster dan profile picture disimpan di cloud storage (AWS S3, Google Cloud Storage, Cloudinary, atau sejenisnya).
+- File diakses melalui CDN URL untuk performa loading.
+
+------------------------------------------------------------------------
+
+27. MVP DEVELOPMENT GOAL
+
+Target MVP Ruanasa Space:
+
+1. Admin dapat membuat dan mengelola event wellness (termasuk template dan duplicate).
+2. Admin dapat mengelola instruktur, specialization, add-on, dan discount per event.
+3. Admin dapat mengatur pricing (normal, early bird, bundle discount) per event.
+4. Participant dapat login tanpa password (Google Login, Email OTP, WhatsApp OTP).
+5. Participant dapat continue without login — sistem otomatis membuat akun baru setelah validasi nomor telepon (primary) dan email (secondary). Jika sudah terdaftar, diminta login.
+6. Participant dapat melakukan multi-pax registration.
+7. Participant dapat memilih add-on dan menggunakan promo code saat registrasi.
+8. Participant mendapatkan early bird dan bundle discount secara otomatis.
+9. Payment dapat diverifikasi otomatis melalui payment gateway callback.
+10. Payment expiration otomatis membatalkan registrasi dan mengembalikan slot, add-on quantity, dan promo code quota.
+11. Admin dapat melihat dan mengelola participant list per event (search, filter, export Excel/CSV).
+12. Admin dapat mencatat attendance peserta.
+13. Sistem mengirim WhatsApp notification (registration confirmation, event reminder H-1, post-event follow-up).
+14. Admin menerima in-app notification (new registration, payment success, event almost full).
+15. Participant dapat mengisi feedback setelah event selesai.
+16. Semua user memiliki profil dengan riwayat event dan attendance history.
+17. Admin dapat melihat dashboard analytics (event, registration, payment, attendance, feedback summary).

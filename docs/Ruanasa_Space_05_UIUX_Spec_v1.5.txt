@@ -1,0 +1,1184 @@
+UI/UX SPECIFICATION DOCUMENT (UIUX-SPEC)
+
+Ruanasa Space
+
+Version: 1.5 (Updated)
+Platform: Web-Based Responsive Application
+
+User Interface Target:
+- Participant: Mobile-first responsive web
+- Admin: Desktop-first dashboard
+
+------------------------------------------------------------------------
+
+1. UI/UX OVERVIEW
+
+UI/UX Ruanasa Space dirancang untuk memberikan pengalaman sederhana bagi participant dalam menemukan event, melakukan registrasi, pembayaran, hingga mengikuti aktivitas wellness.
+
+Admin menggunakan dashboard desktop untuk mengelola seluruh operasional event secara efisien.
+
+Semua peserta yang mendaftar event akan memiliki akun (termasuk melalui continue without login yang otomatis membuat akun), sehingga setiap peserta memiliki profil dan riwayat.
+
+------------------------------------------------------------------------
+
+2. DESIGN PRINCIPLE
+
+Simple — Mengurangi kompleksitas proses registrasi. Participant dapat mendaftar event dalam hitungan menit dengan minimal input.
+
+Trustworthy — Memberikan informasi jelas terkait event, harga, discount breakdown, pembayaran, dan status registrasi. Tidak ada biaya tersembunyi.
+
+Operational Efficiency — Mempermudah admin mengelola event, peserta, pembayaran, dan feedback dalam satu dashboard tanpa berpindah platform.
+
+Consistent — Menggunakan design tokens (warna, typography, spacing) yang konsisten di seluruh halaman untuk membangun familiarity.
+
+Accessible — Touch-friendly untuk mobile, keyboard-navigable untuk desktop, readable font size, dan kontras warna yang memadai.
+
+------------------------------------------------------------------------
+
+3. DESIGN TOKENS
+
+3.1 Color System
+
+Primary: Brand color utama Ruanasa (digunakan pada CTA, active states, links).
+Secondary: Warna pendukung (digunakan pada secondary buttons, accent elements).
+Neutral: Skala abu-abu untuk text, border, background, divider.
+
+Semantic Colors:
+- Success (hijau): pembayaran berhasil, registrasi confirmed, present.
+- Warning (kuning/amber): pending payment, pending registration, event almost full.
+- Danger (merah): expired, failed, error states, delete action.
+- Info (biru): informational badges, early bird, bundle discount.
+
+3.2 Typography
+
+Font Family: Sans-serif (contoh: Inter, Plus Jakarta Sans, atau sesuai brand guidelines).
+Scale:
+- Heading 1: 24px / bold — judul halaman.
+- Heading 2: 20px / semibold — section title.
+- Heading 3: 16px / semibold — sub-section, card title.
+- Body: 14px / regular — paragraph text, form labels.
+- Caption: 12px / regular — helper text, timestamps, secondary info.
+- Overline: 11px / medium uppercase — badge text, status label.
+
+3.3 Spacing
+
+Menggunakan 4px base grid:
+- 4px (xs), 8px (sm), 12px (md), 16px (lg), 24px (xl), 32px (2xl), 48px (3xl).
+- Padding dalam card/container: 16px (mobile), 24px (desktop).
+- Gap antar card/section: 16px (mobile), 24px (desktop).
+
+3.4 Border Radius
+
+- Small: 4px (input fields, badges).
+- Medium: 8px (cards, buttons).
+- Large: 12px (modal, bottom sheet).
+- Full: 999px (avatar, circular badge).
+
+------------------------------------------------------------------------
+
+4. APPLICATION SITEMAP
+
+4.1 Participant Side
+
+- Event Listing (home)
+- Event Detail
+- Authentication (login / continue without login)
+- Registration (multi-step)
+  - Step 1: Participant Data
+  - Step 2: Select Pax & Add Names
+  - Step 3: Select Add-on
+  - Step 4: Apply Discount
+  - Step 5: Order Review
+- Payment (QRIS / Bank Transfer dengan countdown)
+- Confirmation
+- Profile
+- Event History
+- Feedback Form (diakses via unique link)
+- Error Pages (404, event penuh, event selesai, session expired)
+
+4.2 Admin Side
+
+- Dashboard (analytics overview)
+- Event Management
+  - Event List
+  - Create Event (Blank / From Template / Duplicate)
+  - Edit Event
+  - Event Detail (tabs: Overview, Participants, Payments, Attendance, Feedback)
+- Event Template Management
+  - Template List
+  - Create / Edit Template
+- Instructor Management
+  - Instructor List
+  - Create / Edit Instructor
+- Specialization Management
+  - Specialization List
+  - Create / Edit Specialization
+- Discount Management
+  - Promo Code List
+  - Create / Edit Promo Code
+- Analytics (detail per kategori)
+- Notification (header dropdown)
+
+------------------------------------------------------------------------
+
+5. PARTICIPANT EXPERIENCE
+
+------------------------------------------------------------------------
+
+5.1 Event Listing Page
+
+Layout: Single column, scrollable card list. Mobile-first.
+
+Setiap Event Card menampilkan:
+- Poster (thumbnail, rasio 4:5)
+- Event Name
+- Activity Type (tag/label)
+- Date (format: Sabtu, 15 Maret 2027)
+- Location
+- Price display:
+  - Jika early bird aktif: harga normal dicoret, harga early bird ditampilkan, badge "Early Bird" berwarna info.
+  - Jika normal: harga normal saja.
+- Bundle discount teaser (jika ada): teks kecil "Daftar 2 orang diskon 10%" di bawah harga.
+- Available Slot indicator:
+  - Jika tersedia: "X slot tersisa" (warna normal).
+  - Jika sisa ≤ 10%: "Sisa X slot!" (warna warning, badge "Hampir Penuh").
+  - Jika penuh: "Event Penuh" (warna danger, card slightly dimmed).
+- Register Button:
+  - Jika tersedia: "Daftar Sekarang" (primary button).
+  - Jika penuh: tombol hidden atau disabled.
+
+Sorting: Default by date (upcoming first).
+Filter: Activity Type (optional di MVP).
+
+------------------------------------------------------------------------
+
+5.2 Event Detail Page
+
+Layout: Single column, scroll. Poster full-width di atas.
+
+Content:
+- Poster (full-width, rasio 4:5)
+- Event Name (heading 1)
+- Activity Type (tag)
+- Date (format lengkap dengan hari)
+- Time (start - end)
+- Location (dengan ikon lokasi)
+- Description (expandable jika panjang)
+- Instructor Card:
+  - Profile Picture (avatar circle)
+  - Instructor Name
+  - Specialization Tags (badge kecil per specialization)
+  - Bio (expandable)
+- Pricing Section:
+  - Harga yang berlaku (normal atau early bird)
+  - Jika early bird: tampilkan harga normal dicoret + harga early bird + badge "Early Bird" + periode berlaku
+  - Bundle discount info (jika ada): "2 pax = diskon 10%, 3 pax = diskon 15%"
+- Add-on Section (jika ada):
+  - Daftar add-on yang tersedia: nama, harga, availability
+- Capacity Section:
+  - "X dari Y slot tersisa" atau progress bar visual
+  - Jika penuh: "Event Penuh" banner
+  - Jika sisa ≤ 10%: "Hampir Penuh!" badge warning
+
+Sticky CTA (bottom):
+- Jika event Published & slot tersedia: tombol "Daftar Sekarang" (primary, sticky bottom).
+- Jika event penuh: tampilkan "Event Penuh" (disabled/hidden).
+- Jika event Completed: tampilkan "Event Telah Selesai" (info text, tanpa tombol).
+
+------------------------------------------------------------------------
+
+5.3 Authentication Page
+
+Trigger: Participant tap "Daftar Sekarang" dan belum login.
+
+Layout: Single column, centered card.
+
+Opsi yang ditampilkan:
+- "Login with Google" (button dengan ikon Google)
+- "Login with Email" (button)
+- "Login with WhatsApp" (button)
+- Divider: "atau"
+- "Lanjutkan Tanpa Login" (text link atau secondary button)
+
+5.3.1 Google Login Flow
+
+Tap "Login with Google"
+  → Redirect ke Google OAuth consent screen
+  → Kembali ke app
+  → Jika user baru: tampilkan form input Phone Number → Submit → Akun dibuat → Lanjut registrasi
+  → Jika user existing: langsung lanjut registrasi
+
+5.3.2 Email OTP Flow
+
+Tap "Login with Email"
+  → Form: input Email
+  → Tap "Kirim OTP"
+  → Form: input 6 digit OTP (auto-focus, auto-advance per digit)
+  → Countdown timer "Kirim ulang OTP dalam 00:XX"
+  → Jika valid & user baru: tampilkan form input Name dan Phone Number → Submit → Akun dibuat
+  → Jika valid & user existing: langsung lanjut registrasi
+
+Error States:
+- OTP expired: "OTP sudah expired" + tombol "Kirim Ulang OTP"
+- OTP salah: "Kode OTP salah, silakan coba lagi" (sisa percobaan ditampilkan)
+- OTP salah 5x: "Terlalu banyak percobaan, silakan request OTP baru"
+- Rate limit: "Terlalu banyak permintaan, silakan tunggu 15 menit"
+
+5.3.3 WhatsApp OTP Flow
+
+Sama dengan Email OTP, tapi input Phone Number di awal dan OTP dikirim via WhatsApp. Jika user baru, minta input Name dan Email setelah verifikasi.
+
+5.3.4 Continue Without Login — Auto Account Creation Flow
+
+Tap "Lanjutkan Tanpa Login"
+  → Form:
+    - Name (text input, wajib)
+    - Phone Number (text input, wajib, placeholder: "08xxxxxxxxxx")
+    - Email (text input, wajib)
+  → Tap "Lanjutkan"
+  → Loading state (spinner)
+  → Sistem cek phone number:
+    → DITEMUKAN:
+      - Tampilkan inline alert (warning): "Nomor telepon ini sudah terdaftar."
+      - Tampilkan sub-text: "Silakan login untuk melanjutkan."
+      - Tampilkan tombol login options (Google, Email OTP, WhatsApp OTP)
+      - Form tetap terlihat, tidak di-reset
+    → TIDAK DITEMUKAN → sistem cek email:
+      → DITEMUKAN:
+        - Tampilkan inline alert (warning): "Email ini sudah terdaftar."
+        - Tampilkan sub-text: "Silakan login untuk melanjutkan."
+        - Tampilkan tombol login options
+      → TIDAK DITEMUKAN:
+        - Akun otomatis dibuat (auth_provider = auto_created)
+        - Session aktif langsung diberikan
+        - Redirect ke registration step berikutnya
+
+------------------------------------------------------------------------
+
+5.4 Registration Flow (Multi-Step)
+
+Layout: Single column dengan stepper/progress indicator di atas menunjukkan posisi saat ini.
+
+Steps: Data Peserta → Jumlah & Nama → Add-on → Discount → Review
+
+5.4.1 Step 1: Participant Data
+
+Data auto-fill dari profil user (karena semua peserta punya akun):
+- Name (text input, pre-filled, editable)
+- Email (text input, pre-filled, editable)
+- Phone Number (text input, pre-filled, editable)
+
+Validation (inline, real-time):
+- Email: format valid → jika tidak: "Format email tidak valid"
+- Phone: format Indonesia (+62/08) → jika tidak: "Format nomor telepon tidak valid"
+
+Duplicate check:
+- Duplikasi dicek saat submit (Bayar Sekarang); jika ditolak (DUPLICATE_REGISTRATION), tampilkan "Anda sudah terdaftar pada event ini" (inline alert, danger)
+
+Button: "Lanjutkan" (primary)
+
+5.4.2 Step 2: Select Pax & Add Participant Names
+
+Input: jumlah peserta (number stepper: - / + , minimum 1).
+- Saat quantity berubah, sistem cek sisa slot:
+  - Jika tidak cukup: "Slot tersisa hanya X, silakan kurangi jumlah peserta" (inline alert, warning)
+
+Jika pax > 1:
+- Tampilkan field nama per peserta tambahan (dynamic, muncul sesuai jumlah):
+  - "Peserta 2" — Name (text input, wajib)
+  - "Peserta 3" — Name (text input, wajib)
+  - dst.
+- Peserta 1 = buyer, sudah terisi dari step 1.
+
+Jika pax = 1:
+- Tidak ada field tambahan.
+
+Bundle discount preview (jika berlaku):
+- Tampilkan teks info: "Anda mendapatkan diskon 10% untuk 2 peserta!" (info color)
+
+Button: "Lanjutkan" / "Kembali"
+
+5.4.3 Step 3: Select Add-on
+
+Jika event tidak memiliki add-on: skip step ini, langsung ke step 4.
+
+Tampilkan daftar add-on yang Active dan available:
+- Setiap add-on card menampilkan:
+  - Add-on Name
+  - Description (jika ada)
+  - Price per unit
+  - Quantity selector (- / +, min 0, max sesuai max_purchase_quantity)
+  - Subtotal per add-on (price x quantity, update real-time)
+- Jika available_quantity = 0: add-on tidak ditampilkan.
+
+Running total di bawah: "Subtotal Add-on: Rp xxx"
+
+Button: "Lanjutkan" / "Kembali"
+
+5.4.4 Step 4: Apply Discount
+
+Auto-applied discounts (read-only, informational):
+- Early Bird: "Harga Early Bird diterapkan: Rp xxx/pax" (badge info)
+- Bundle Discount: "Diskon 10% untuk 2 peserta diterapkan" (badge info)
+
+Promo Code input:
+- Text input: "Masukkan Kode Promo"
+- Button: "Terapkan"
+- Jika valid: tampilkan "Kode promo [CODE] berhasil diterapkan! Diskon: -Rp xxx" (success alert) + ikon X untuk hapus
+- Jika invalid: tampilkan error message sesuai kasus:
+  - "Kode promo tidak valid"
+  - "Kode promo sudah expired"
+  - "Kode promo sudah habis"
+  - "Kode promo tidak aktif"
+
+Button: "Lihat Ringkasan" / "Kembali"
+
+5.4.5 Step 5: Order Review
+
+Tampilkan ringkasan lengkap sebelum pembayaran:
+
+Event Info:
+- Event Name, Date, Time, Location (compact)
+
+Participant List:
+- Nama per peserta (numbered: 1. Sarah, 2. Budi, 3. Rina)
+
+Price Breakdown:
+- Harga per pax (normal/early bird): Rp xxx
+- Jumlah pax: x orang
+- Subtotal: Rp xxx
+- Bundle Discount (jika berlaku): -Rp xxx (label: "Diskon 2 pax 10%")
+- Add-on (per item):
+  - [Nama Add-on] x [qty]: Rp xxx
+- Subtotal Add-on: Rp xxx
+- Promo Code (jika berlaku): -Rp xxx (label: "Promo [CODE]")
+- Divider
+- Total Payment: Rp xxx (heading, bold, prominent)
+
+Button: "Bayar Sekarang" (primary, prominent) / "Kembali"
+
+------------------------------------------------------------------------
+
+5.5 Payment Page
+
+Layout: Single column, centered.
+
+5.5.1 Payment Method Selection
+
+Tampilkan pilihan:
+- QRIS (radio/card selector)
+- Bank Transfer (radio/card selector)
+
+Tap "Lanjutkan ke Pembayaran"
+
+5.5.2 QRIS Payment
+
+Tampilkan:
+- QR Code image (centered, scannable)
+- Total amount: "Rp xxx"
+- Countdown timer: "Selesaikan pembayaran dalam XX:XX" (warning color saat < 10 menit)
+- Instruksi: "Scan QR code menggunakan aplikasi e-wallet atau mobile banking Anda"
+
+5.5.3 Bank Transfer Payment
+
+Tampilkan:
+- Bank name
+- Virtual Account Number (dengan tombol "Salin")
+- Total amount: "Rp xxx"
+- Countdown timer: "Selesaikan pembayaran dalam XX:XX"
+- Instruksi transfer step-by-step
+
+5.5.4 Payment States
+
+- Waiting: QR/VA ditampilkan dengan countdown.
+- Processing: "Memverifikasi pembayaran..." (loading spinner).
+- Success: redirect ke Confirmation Page.
+- Expired: "Waktu pembayaran habis. Registrasi Anda telah dibatalkan. Slot dan kuota telah dikembalikan." + tombol "Daftar Ulang" (redirect ke event detail).
+- Failed: ditampilkan jika pembuatan transaksi gagal (PAYMENT_GATEWAY_ERROR dari POST /payments). "Pembayaran gagal diproses. Silakan coba kembali." + tombol "Coba Lagi" dan "Ganti Metode" (keduanya memanggil ulang POST /payments selama payment masih pending).
+
+------------------------------------------------------------------------
+
+5.6 Confirmation Page
+
+Layout: Single column, centered, celebratory tone.
+
+Tampilkan:
+- Success icon (checkmark circle, success color)
+- "Registrasi Berhasil!" (heading)
+- Event Name
+- Date, Time, Location
+- Jumlah Participant
+- Participant Names (list)
+- Add-on yang dibeli (jika ada)
+- Total Payment yang sudah dibayar: Rp xxx
+- Status: "Confirmed" (badge success)
+- "Konfirmasi juga dikirim via WhatsApp" (info text)
+- WhatsApp Community Group Link (jika ada): tombol "Gabung Group WhatsApp"
+- Button: "Lihat Event Lain" (secondary) / "Lihat Profil" (text link)
+
+------------------------------------------------------------------------
+
+5.7 Profile Page
+
+Layout: Single column.
+
+Header:
+- Avatar (profile picture atau initial circle)
+- Name
+- Email
+- Phone Number
+- Join Date
+- Tombol "Edit Profil" (optional di MVP)
+
+Tab: "Event History"
+
+Event History List:
+- Setiap item menampilkan:
+  - Event Name
+  - Event Date
+  - Attendance Status badge:
+    - Present (success color)
+    - Not Checked (neutral/warning)
+
+Empty State: "Anda belum mengikuti event apapun."
+
+------------------------------------------------------------------------
+
+5.8 Feedback Form Page
+
+Diakses via unique link (tanpa login).
+
+Layout: Single column, centered card.
+
+States:
+
+Normal (participant hadir, belum submit):
+- Event Name (heading)
+- "Bagaimana pengalaman Anda?" (sub-heading)
+- Rating input: 5 bintang (tap to select, optional — participant bisa submit hanya dengan comment/suggestion)
+- Comment (textarea, optional, placeholder: "Ceritakan pengalaman Anda...", maks 2000 karakter, character counter)
+- Suggestion (textarea, optional, placeholder: "Ada saran untuk kami?", maks 2000 karakter, character counter)
+- Button: "Kirim Feedback" (primary)
+
+Success (setelah submit):
+- Success icon
+- "Terima kasih atas feedback Anda!"
+- "Feedback Anda membantu kami menjadi lebih baik."
+
+Already Submitted:
+- Info icon
+- "Anda sudah mengisi feedback untuk event ini."
+
+Not Attended:
+- Warning icon
+- "Feedback hanya tersedia untuk peserta yang hadir."
+
+Invalid/Expired Link:
+- Error icon
+- "Link feedback tidak valid."
+
+------------------------------------------------------------------------
+
+5.9 Error Pages
+
+5.9.1 Page 404 — Not Found
+- Illustration (optional)
+- "Halaman tidak ditemukan"
+- "Halaman yang Anda cari tidak tersedia."
+- Button: "Kembali ke Beranda"
+
+5.9.2 Event Penuh
+- Event info tetap ditampilkan (poster, nama, tanggal)
+- Banner: "Event Penuh" (danger color)
+- "Maaf, seluruh slot untuk event ini sudah terisi."
+- Button: "Lihat Event Lain"
+
+5.9.3 Event Selesai
+- Event info tetap ditampilkan
+- Banner: "Event Telah Selesai"
+- "Event ini sudah selesai dilaksanakan."
+- Button: "Lihat Event Lain"
+
+5.9.4 Session Expired
+- "Sesi Anda telah berakhir"
+- "Silakan login kembali untuk melanjutkan."
+- Button: "Login"
+
+------------------------------------------------------------------------
+
+6. ADMIN DASHBOARD
+
+------------------------------------------------------------------------
+
+6.1 Layout Structure
+
+- Sidebar Navigation (collapsible di tablet):
+  - Dashboard
+  - Event Management
+  - Event Templates
+  - Instructors
+  - Specializations
+  - Promo Codes
+  - Analytics
+- Header:
+  - Search (global)
+  - Notification Icon (bell) dengan badge count unread
+  - Admin Profile (avatar + name dropdown)
+- Main Content Area: responsive grid
+
+------------------------------------------------------------------------
+
+6.2 Dashboard Page (Analytics Overview)
+
+Layout: Grid of summary cards + quick charts.
+
+Summary Cards (top row):
+- Upcoming Events (count, link ke event list filtered)
+- Completed Events (count)
+- Total Participants (Confirmed, keseluruhan)
+- Total Revenue (Rp, keseluruhan Paid)
+- Average Attendance Rate (%)
+- Average Feedback Rating (x.x / 5.0)
+
+Quick Charts (below cards):
+- Registration trend (line chart, per minggu/bulan)
+- Revenue trend (bar chart, per event)
+
+Recent Activity Feed:
+- 5 notifikasi terbaru (new registration, payment success, dll)
+
+------------------------------------------------------------------------
+
+6.3 Event Management
+
+6.3.1 Event List
+
+Layout: Table with filters.
+
+Columns:
+- Event Name
+- Date
+- Instructor
+- Capacity (registered / max, contoh: "25/30")
+- Status (badge: Draft / Published / Completed)
+- Actions
+
+Filter:
+- Status: All / Draft / Published / Completed
+- Date Range (optional)
+
+Actions per row:
+- View (buka event detail)
+- Edit (hanya Draft dan Published)
+- Duplicate (semua status)
+- Publish (hanya Draft → Published)
+- Complete (hanya Published → Completed, dengan confirmation modal)
+- Delete (hanya Draft, dengan confirmation modal: "Apakah Anda yakin ingin menghapus event ini?")
+- Share (hanya Published):
+  - Copy Public URL
+  - Download QR Code
+
+Tombol header: "+ Create Event" (primary)
+
+6.3.2 Create Event
+
+Trigger: tap "+ Create Event"
+  → Modal pilihan metode:
+    - "Buat Baru" (blank)
+    - "Dari Template" (tampilkan template list → pilih → data auto-fill)
+    - "Duplikasi Event" (tampilkan event list → pilih → data auto-fill kecuali tanggal)
+
+Layout: Form dengan tab/section navigation.
+
+Tab 1 — Basic Info:
+- Event Name (text, wajib, maks 150 karakter, character counter)
+- Activity Type (dropdown/select, wajib)
+- Description (textarea/rich text, wajib, maks 5000 karakter, character counter)
+- Upload Poster (drag & drop atau browse, preview image, format: JPG/PNG/WebP, maks 5 MB)
+  - Error: "Ukuran file terlalu besar (maks 5 MB)" / "Format tidak didukung"
+
+Tab 2 — Schedule & Location:
+- Date (date picker, wajib sebelum Publish, tidak boleh tanggal lampau; boleh kosong pada Draft hasil duplikasi)
+- Start Time (time picker, wajib sebelum Publish)
+- End Time (time picker, wajib sebelum Publish, harus setelah start time)
+  - Error: "End time harus setelah start time"
+- Location (text, wajib, maks 500 karakter)
+
+Tab 3 — Instructor & Capacity:
+- Instructor (dropdown, hanya Active, wajib)
+  - Menampilkan: nama + specialization tags
+- Capacity (number input, wajib, min 1)
+
+Tab 4 — Pricing:
+- Normal Price section:
+  - Price (number input, Rupiah, wajib)
+- Early Bird section (optional, toggle on/off):
+  - Early Bird Price (number input)
+  - Start Date (date picker)
+  - End Date (date picker)
+- Bundle Discount section (optional, repeatable rows):
+  - Row: Minimum Pax (number) | Discount Type (dropdown: Percentage / Fixed) | Discount Value (number)
+  - Tombol "+ Tambah Rule"
+  - Contoh preview: "2 pax = diskon 10%"
+
+Tab 5 — Add-on (optional):
+- Daftar add-on (repeatable):
+  - Name (text)
+  - Description (text, optional)
+  - Price (number)
+  - Available Quantity (number)
+  - Max Purchase per registration (number)
+  - Status toggle (Active/Inactive)
+  - Tombol "+ Tambah Add-on"
+
+Actions:
+- "Simpan sebagai Draft" (secondary)
+- "Publish Event" (primary, dengan confirmation modal)
+
+6.3.3 Event Detail (Admin View)
+
+Layout: Header + tabs.
+
+Header:
+- Event Name, Date, Status Badge
+- Action buttons: Edit, Duplicate, Share, Publish/Complete (sesuai status)
+
+Tabs:
+- Overview (event info, pricing, add-on summary)
+- Participants (section 6.7)
+- Payments (section 6.8)
+- Attendance (section 6.9)
+- Feedback (section 6.12)
+
+------------------------------------------------------------------------
+
+6.4 Event Template Management
+
+6.4.1 Template List
+
+Layout: Table atau card grid.
+
+Columns/Data:
+- Template Name
+- Activity Type
+- Instructor
+- Created Date
+- Actions: Edit, Delete (confirmation modal)
+
+Tombol header: "+ Create Template"
+
+6.4.2 Create/Edit Template Form
+
+Fields:
+- Template Name (text, wajib)
+- Activity Type (dropdown, wajib)
+- Description (textarea, optional)
+- Instructor (dropdown, Active only, optional)
+
+Note: "Template tidak menyimpan add-on dan pricing. Anda akan mengaturnya saat membuat event."
+
+Actions: "Simpan" (primary) / "Batal"
+
+------------------------------------------------------------------------
+
+6.5 Instructor Management
+
+6.5.1 Instructor List
+
+Layout: Table atau card grid.
+
+Columns/Data:
+- Profile Picture (avatar)
+- Name
+- Specialization Tags (badges)
+- Status (Active / Inactive badge)
+- Actions: Edit, Toggle Status
+
+Tombol header: "+ Add Instructor"
+
+Filter: Status (All / Active / Inactive)
+
+6.5.2 Create/Edit Instructor Form
+
+Fields:
+- Instructor Name (text, wajib, maks 100 karakter)
+- Profile Picture (upload, optional, preview)
+- Bio (textarea, optional, maks 2000 karakter, character counter)
+- Specialization (multi-select dropdown/tags, pilih dari daftar specialization)
+- Contact Information (text, optional, maks 500 karakter)
+- Status (toggle: Active / Inactive)
+
+Delete Rule:
+- Jika instructor terhubung dengan event Published: tombol delete disabled, tooltip: "Tidak dapat menghapus instructor yang terhubung dengan event aktif."
+
+Actions: "Simpan" (primary) / "Batal"
+
+------------------------------------------------------------------------
+
+6.6 Specialization Management
+
+6.6.1 Specialization List
+
+Layout: Simple table atau tag list.
+
+Columns:
+- Name
+- Jumlah instructor yang menggunakan
+- Actions: Edit, Delete
+
+Delete Rule:
+- Jika specialization sedang digunakan oleh instructor: confirmation modal "Specialization ini digunakan oleh X instructor. Yakin ingin menghapus?"
+
+Tombol header: "+ Add Specialization"
+
+6.6.2 Create/Edit Specialization
+
+Fields:
+- Name (text, wajib, unique, maks 100 karakter)
+
+Actions: "Simpan" / "Batal"
+
+------------------------------------------------------------------------
+
+6.7 Participant Management
+
+Diakses melalui: Event Detail → Tab "Participants"
+
+6.7.1 Participant List
+
+Layout: Table with search and filters.
+
+Search Bar: cari berdasarkan nama, email, atau phone number (real-time).
+
+Filters:
+- Payment Status: All / Pending Payment / Paid / Expired
+- Registration Status: All / Pending / Confirmed / Expired
+- Attendance Status: All / Not Checked / Present
+
+Columns:
+- Participant Name
+- Booking Owner (buyer name, italic jika berbeda dari participant)
+- Email
+- Phone Number
+- Payment Status (badge)
+- Registration Status (badge)
+- Attendance Status (badge + toggle jika Confirmed)
+- Add-on (list, jika ada)
+
+Pagination: 20 item per page.
+
+Actions:
+- Export (tombol di header table): pilih format Excel (.xlsx) atau CSV (.csv)
+- Check-in: toggle attendance per participant (hanya jika registration = Confirmed; memakai attendance_id dari respons list)
+
+Empty State: "Belum ada peserta terdaftar untuk event ini."
+
+------------------------------------------------------------------------
+
+6.8 Payment Management
+
+Diakses melalui: Event Detail → Tab "Payments"
+
+Layout: Table. Data berasal dari GET /admin/events/{id}/payments.
+
+Columns:
+- Booking Owner
+- Total Pax
+- Total Payment (Rp)
+- Payment Method (QRIS / Bank Transfer)
+- Payment Status (badge: Pending Payment / Paid / Expired)
+- Payment Deadline (countdown timer hanya jika status Pending; tidak ditampilkan countdown jika Paid/Expired)
+- Paid At (timestamp jika sudah Paid)
+
+Actions:
+- "Check Payment Status" button per row (trigger manual check ke payment gateway, hanya untuk status Pending)
+
+Empty State: "Belum ada transaksi pembayaran untuk event ini."
+
+------------------------------------------------------------------------
+
+6.9 Attendance Management
+
+Diakses melalui: Event Detail → Tab "Attendance"
+
+Layout: List atau table, optimized for quick check-in.
+
+Search Bar: cari participant berdasarkan nama (real-time, prominent).
+
+List item:
+- Participant Name
+- Attendance Status toggle (switch: Not Checked ↔ Present)
+- Checked At timestamp (muncul setelah ditandai Present)
+
+Filter: hanya menampilkan participant yang registration = Confirmed.
+
+Summary di atas list:
+- "Present: X / Y peserta (Z%)"
+
+Empty State: "Belum ada peserta yang dikonfirmasi untuk event ini."
+
+------------------------------------------------------------------------
+
+6.10 Discount Management (Promo Code)
+
+Diakses melalui: Sidebar → "Promo Codes"
+
+6.10.1 Promo Code List
+
+Layout: Table.
+
+Columns:
+- Code
+- Discount Type (Percentage / Fixed Amount)
+- Discount Value
+- Quota (used_count / quota, contoh: "12/50")
+- Expiry Date
+- Status (badge: Active / Inactive / Expired)
+
+Filter: Status (All / Active / Inactive / Expired)
+
+Actions per row: Edit, Toggle Status (Active/Inactive)
+
+Tombol header: "+ Create Promo Code"
+
+Note: Promo code yang sudah melewati expiry_date otomatis ditampilkan dengan badge "Expired" (read-only, tidak bisa diedit menjadi Active).
+
+6.10.2 Create/Edit Promo Code Form
+
+Fields:
+- Code (text, wajib, alphanumeric, maks 20 karakter, auto-uppercase)
+- Discount Type (dropdown: Percentage / Fixed Amount)
+- Discount Value (number, wajib)
+  - Jika Percentage: suffix "%", max 100
+  - Jika Fixed Amount: prefix "Rp"
+- Quota (number, wajib, min 1)
+- Expiry Date (date picker, wajib, harus masa depan)
+- Status (toggle: Active / Inactive)
+
+Validation:
+- Code sudah ada: "Kode promo ini sudah digunakan"
+
+Actions: "Simpan" (primary) / "Batal"
+
+------------------------------------------------------------------------
+
+6.11 Notification (Admin)
+
+6.11.1 Notification Icon
+
+Lokasi: Header dashboard, sebelah kiri admin profile.
+- Bell icon
+- Badge count (angka, warna danger) menunjukkan jumlah unread notifications.
+- Jika 0 unread: badge hidden.
+
+6.11.2 Notification Dropdown
+
+Trigger: tap bell icon → dropdown panel.
+
+Layout: Scrollable list, max height ~400px.
+
+Setiap notification item:
+- Icon sesuai type:
+  - New Registration: person+ icon
+  - Payment Success: checkmark icon
+  - Event Almost Full: warning icon
+- Message text:
+  - New Registration: "[Nama] mendaftar [X pax] untuk [Event Name]"
+  - Payment Success: "Pembayaran dari [Nama] untuk [Event Name] berhasil (Rp xxx)"
+  - Event Almost Full: "[Event Name] hampir penuh — tersisa [X] slot"
+- Timestamp: "2 menit lalu", "1 jam lalu", dst.
+- Unread indicator: dot atau background highlight.
+
+Tap notification → navigate ke event detail yang relevan.
+Footer: "Tandai semua sebagai dibaca" (text link).
+
+------------------------------------------------------------------------
+
+6.12 Feedback Management
+
+Diakses melalui: Event Detail → Tab "Feedback"
+
+Layout: Summary + list.
+
+Summary (top):
+- Average Rating: "4.5 / 5.0" (dengan visual bintang)
+- Total Feedback Received: "24 feedback"
+
+Feedback List:
+- Setiap item:
+  - Participant Name
+  - Rating (bintang visual)
+  - Comment (expandable jika panjang)
+  - Suggestion (expandable jika panjang)
+  - Submitted At (timestamp)
+
+Sort: newest first.
+Empty State: "Belum ada feedback untuk event ini."
+
+------------------------------------------------------------------------
+
+6.13 Analytics Page
+
+Diakses melalui: Sidebar → "Analytics"
+
+Layout: Sections with charts.
+
+6.13.1 Event Analytics
+- Total Events (all status)
+- Events by Status (pie/donut chart: Draft, Published, Completed)
+- Events by Activity Type (bar chart)
+
+6.13.2 Registration Analytics
+- Total Participants (Confirmed)
+- Registration Trend (line chart, per minggu/bulan)
+- Top Events by Registration (bar chart, top 5)
+
+6.13.3 Revenue Analytics
+- Total Revenue (Rp, Paid only)
+- Revenue per Event (bar chart)
+- Outstanding Payment (total Pending Payment)
+
+6.13.4 Attendance Analytics
+- Average Attendance Rate (%)
+- Attendance Rate per Event (bar chart)
+
+6.13.5 Feedback Analytics
+- Average Rating (overall)
+- Rating Distribution (bar chart: 1-star, 2-star, ..., 5-star)
+- Rating per Event (bar chart)
+
+------------------------------------------------------------------------
+
+7. SHARED UI COMPONENTS
+
+7.1 Buttons
+
+- Primary: brand color, digunakan untuk CTA utama (Daftar, Bayar, Publish, Simpan).
+- Secondary: outline atau muted, digunakan untuk action sekunder (Kembali, Batal, Simpan Draft).
+- Danger: merah, digunakan untuk destructive action (Hapus, Batalkan).
+- Text/Link: tanpa background, digunakan untuk navigasi atau action minor.
+- Disabled: opacity rendah, non-interactive, tooltip menjelaskan kenapa disabled.
+
+7.2 Input Fields
+
+- Text Input (dengan label, placeholder, helper text, error text, character counter)
+- Number Input (dengan +/- stepper)
+- Textarea (dengan character counter)
+- Date Picker
+- Time Picker
+- Dropdown / Select
+- Multi-select (tags)
+- File Upload (drag & drop + browse, preview, size/format validation)
+- Toggle Switch (on/off)
+- Radio Group (card-style untuk payment method)
+- OTP Input (6 digit, auto-focus, auto-advance)
+
+7.3 Cards
+
+- Event Card (listing, poster + info + CTA)
+- Instructor Card (avatar + name + tags + bio)
+- Add-on Card (name + price + quantity selector)
+- Summary Card (dashboard metrics, icon + label + value)
+- Notification Card (icon + message + timestamp)
+- Price Breakdown Card (line items + total)
+
+7.4 Status Badges
+
+Payment Status:
+- Pending Payment (warning color)
+- Paid (success color)
+- Expired (danger color)
+
+Registration Status:
+- Pending (warning color)
+- Confirmed (success color)
+- Expired (danger color)
+
+Attendance Status:
+- Not Checked (neutral color)
+- Present (success color)
+
+Event Status:
+- Draft (neutral color)
+- Published (success color)
+- Completed (info color)
+
+Notification Status:
+- Sent (success)
+- Failed (danger)
+- Pending (warning)
+
+Instructor Status:
+- Active (success)
+- Inactive (neutral)
+
+Promo Code Status:
+- Active (success)
+- Inactive (neutral)
+- Expired (danger)
+
+Add-on Status:
+- Active (success)
+- Inactive (neutral)
+
+7.5 Feedback & Overlay Components
+
+- Modal / Dialog (confirmation: Publish, Complete, Delete, dll. Dengan judul, deskripsi, dan dua tombol: Cancel + Confirm)
+- Toast / Snackbar (feedback singkat setelah action: "Event berhasil dipublikasikan", "Data tersimpan", "Gagal menyimpan, coba lagi". Auto-dismiss 4 detik. Posisi: bottom-center mobile, top-right desktop)
+- Bottom Sheet (mobile: pilihan share method, filter options)
+- Tooltip (penjelasan singkat saat hover/tap pada elemen yang disabled atau ikon info)
+
+7.6 Navigation & Layout
+
+- Stepper / Progress Bar (registration flow, numbered steps, current step highlighted)
+- Countdown Timer (payment deadline, format MM:SS, warna berubah saat < 10 menit)
+- Tabs (event detail admin: Overview, Participants, Payments, Attendance, Feedback)
+- Sidebar Navigation (admin, collapsible)
+- Pagination (participant list, 20 per page)
+- Search Bar (with icon, debounced input)
+- Filter Dropdown (multi-option)
+- Breadcrumb (admin, optional)
+- Sticky CTA Bar (mobile participant: tombol Daftar di bawah)
+
+7.7 Data Display
+
+- Table (admin: sortable columns, row actions)
+- Empty State (per context: custom illustration + message + action button)
+- Badge / Tag (specialization, early bird, activity type, status)
+- Avatar (circle, with fallback initial)
+- Star Rating (input: interactive 5-star. Display: filled stars)
+- Progress Bar (capacity: used/total)
+- QR Code Display (centered, scannable, with save option)
+- Character Counter (textarea, format: "123/2000")
+
+------------------------------------------------------------------------
+
+8. DESIGN & DEVELOPMENT TOOLS
+
+8.1 Design Reference
+
+Seluruh design system, UI components, dan visual design Ruanasa Space menggunakan referensi dari Stitch AI. Hal ini mencakup:
+- Component library dan variants
+- Design tokens (colors, typography, spacing, border radius) — disesuaikan dengan Section 3 dokumen ini
+- Layout patterns dan responsive behavior
+- Interaction patterns dan micro-interactions
+
+8.2 Panduan untuk AI
+
+Saat mengerjakan task frontend, AI WAJIB:
+- Menggunakan Stitch AI sebagai referensi utama untuk design dan component styling
+- Memastikan output visual konsisten dengan design system dari Stitch AI
+- Menyesuaikan design tokens di Section 3 jika ada perbedaan dengan referensi Stitch AI (dengan approval)
+- Menggunakan component patterns dari Stitch AI sebagai basis, diimplementasikan dengan shadcn/ui + Tailwind CSS
+
+------------------------------------------------------------------------
+
+9. RESPONSIVE REQUIREMENT
+
+9.1 Participant (Mobile-First)
+
+- Minimum viewport: 360px.
+- Single column layout.
+- Sticky CTA bar di bottom (Daftar Sekarang, Bayar Sekarang).
+- Touch-friendly: minimum tap target 44x44px.
+- Swipeable cards (optional).
+- Bottom sheet untuk pilihan dan filter.
+- Font minimum: 14px body, 12px caption.
+- Poster full-width, rasio 4:5.
+
+9.2 Admin (Desktop-First)
+
+- Minimum viewport: 1280px.
+- Sidebar navigation (collapsible untuk tablet 768px+).
+- Table layout untuk data lists.
+- Dashboard menggunakan grid card layout.
+- Modal untuk confirmations dan forms.
+- Hover states pada interactive elements.
+- Responsive breakpoints:
+  - Desktop: ≥ 1280px (full sidebar + content)
+  - Tablet: 768px - 1279px (collapsed sidebar, stacked cards)
+  - Mobile: < 768px (hidden sidebar, hamburger menu, stacked layout)
+
+------------------------------------------------------------------------
+
+10. UI STATE REQUIREMENT
+
+10.1 Loading States
+
+- Full page loading: centered spinner + "Memuat..." text.
+- Skeleton loading: gray placeholder shapes (untuk card list, table rows, event detail).
+- Inline loading: spinner kecil di dalam button saat processing (contoh: "Memproses..." saat submit).
+- Lazy loading: poster images load saat masuk viewport.
+
+10.2 Empty States
+
+Setiap konteks memiliki empty state spesifik:
+- Event Listing: "Belum ada event tersedia saat ini."
+- Participant List: "Belum ada peserta terdaftar untuk event ini."
+- Payment List: "Belum ada transaksi pembayaran untuk event ini."
+- Attendance: "Belum ada peserta yang dikonfirmasi untuk event ini."
+- Feedback: "Belum ada feedback untuk event ini."
+- Event History (profile): "Anda belum mengikuti event apapun."
+- Notification: "Tidak ada notifikasi baru."
+- Template List: "Belum ada template. Buat template pertama Anda."
+- Promo Code List: "Belum ada promo code."
+
+10.3 Error States
+
+- Form validation: inline error text di bawah field (danger color), field border berubah merah.
+- API error: toast "Terjadi kesalahan, silakan coba lagi."
+- Network error: toast "Koneksi internet terputus."
+- Permission error: redirect ke halaman yang sesuai.
+
+10.4 Success States
+
+- Toast notification: "Event berhasil dipublikasikan", "Data tersimpan", "Pembayaran berhasil", dll.
+- Inline success: checkmark icon + text (contoh: "Kode promo berhasil diterapkan!")
+- Page-level success: Confirmation Page setelah pembayaran.
+
+------------------------------------------------------------------------
+
+11. UI PAGE DATABASE MAPPING
+
+Page                          | Database Tables
+------------------------------|----------------------------------------
+Event Listing                 | events, event_prices
+Event Detail                  | events, instructors, specializations,
+                              | instructor_specialization_mapping,
+                              | event_prices, event_pricing_rules, addons
+Authentication                | users
+Registration Step 1-2         | users, registrations, participants
+Registration Step 3           | addons, registration_addons
+Registration Step 4           | event_prices, event_pricing_rules,
+                              | discount_codes
+Registration Step 5           | registrations (summary)
+Payment                       | payments
+Confirmation                  | registrations, participants, events
+Profile                       | users
+Event History                 | registrations, participants, attendance,
+                              | events
+Feedback Form                 | feedback, attendance, participants
+Admin Dashboard               | events, registrations, payments,
+                              | attendance, feedback
+Admin Event List              | events, instructors
+Admin Create/Edit Event       | events, event_templates, instructors,
+                              | event_prices, event_pricing_rules, addons
+Admin Event Template          | event_templates, instructors
+Admin Instructor              | instructors, specializations,
+                              | instructor_specialization_mapping
+Admin Specialization          | specializations
+Admin Participant List        | participants, registrations, users,
+                              | attendance, registration_addons
+Admin Payment                 | payments, registrations, users
+Admin Attendance              | attendance, participants, registrations
+Admin Promo Code              | discount_codes
+Admin Feedback                | feedback, participants
+Admin Analytics               | events, registrations, payments,
+                              | attendance, feedback
+Admin Notification            | notifications
+
+------------------------------------------------------------------------
+
+12. NEXT DOCUMENT
+
+API Specification Document v1.6

@@ -1,0 +1,56 @@
+RUANASA SPACE — CHANGELOG REVISI KONSISTENSI DOKUMEN
+
+Tanggal   : 2026-10-06
+Cakupan   : 10 dokumen spesifikasi (versi dokumen tidak berubah)
+
+PENAMAAN FILE
+Pola: Ruanasa_Space_NN_<Dokumen>_v<versi>.txt (NN = urutan baca)
+
+00 CHANGELOG
+01 PRD v1.5
+02 UFD v1.5
+03 SRD v1.5
+04 ERD v1.6
+05 UIUX Spec v1.5
+06 API Spec v1.6
+07 TAD v1.6
+08 DTBD v1.6
+09 Stitch AI Design Brief v1.1
+10 AI Dev Context Guide v1.3
+
+File lama yang dihapus: ERD_v1.5 (duplikat identik dengan ERD v1.6).
+File lama yang tidak dipakai lagi: DTBD v1.5, TAD v1.5 (2), API Spec v1.5 (3).
+
+KEPUTUSAN SKEMA (disetujui lewat permintaan perbaikan; ubah jika tidak sesuai)
+K1. events.date, start_time, end_time NULLABLE. Wajib terisi saat publish
+    (validasi aplikasi, 400 VALIDATION_ERROR). Menyelesaikan konflik duplicate event.
+K2. updated_at ditambahkan di registrations dan payments (instructors sudah ada).
+    Prinsip ERD: created_at di semua tabel; updated_at di tabel yang dapat diubah.
+K3. registrations.subtotal = pax_subtotal (tanpa add-on);
+    total_payment = subtotal - discount_amount + total add-on.
+K4. API 15.1 (participant list) menambah attendance_id (nullable) agar toggle
+    check-in di tab Participants bisa memanggil PATCH /admin/attendance/{id}.
+
+PERUBAHAN PER DOKUMEN
+01 PRD  : 16.4 status registrasi + Expired; 9.1/9.5 catatan tanggal draft; 14.3, 16.5, 19.1 penegasan.
+02 UFD  : payment status + Expired (11.1, 12.1); duplicate event mengosongkan tanggal/waktu.
+03 SRD  : tanggal/waktu wajib sebelum publish (6.1, 7.2, 23.2); OTP salah >5x = request OTP baru (24.4).
+04 ERD  : K1, K2, K3; job expiration juga mengubah payments.status; tambah 23.3 post-event job.
+05 UIUX : tab Overview di sitemap; tanggal wajib sebelum Publish; toggle check-in memakai attendance_id.
+06 API  : publish menolak tanpa tanggal/waktu; webhook: transaksi tidak dikenal -> 200 (11 langkah tetap);
+          attendance_id di participant list; catatan subtotal di 13.2.
+07 TAD  : modul discounts ditambahkan (18 modul); webhook & expiration mengubah registrations.payment_status
+          dan payments.status; /pricing/calculate dan /discount-codes/validate = auth participant;
+          rate limit registration/public list; index sesuai ERD; health = GET /api/v1/health;
+          cookie primary + Bearer fallback; MIDTRANS_WEBHOOK_SECRET dihapus; services/api.ts duplikat dihapus;
+          trigger post-event saat complete dan admin_new_registration dicatat di 6.3.
+08 DTBD : nomor section ERD/TAD/SRD/UIUX/API pada REFERENCE dikoreksi; modul 18; rate limit lengkap;
+          seed admin + phone_number; P3-BE-002 (publish, complete, duplicate); P4-BE-002 (notif admin_new_registration);
+          P4-BE-003 (lookup transaksi tidak dikenal, notifikasi via stub); P4-BE-004 (payments.status expired);
+          P5-BE-001 (attendance_id); P6-BE-004 (PostEventService, wiring dari complete); ringkasan task
+          dikoreksi (P0 54 / P1 14; M 36 / XL 9; BE 30 / FE 25); eksekusi bergantian, satu task per waktu.
+09 Stitch: tidak ada perubahan.
+10 AI Guide: cookie primary + Bearer fallback; satu task aktif per waktu; aturan tanggal draft.
+
+PERUBAHAN TOOLING (2026-10-06)
+Package manager: npm -> Yarn 4 (workspaces, nodeLinker: node-modules). Disesuaikan di TAD (CI: yarn install --immutable, yarn build; 22.1), DTBD (P0-INF-001, P11-TEST-001), AI Guide (10.4).

@@ -1,0 +1,821 @@
+DATABASE SCHEMA DOCUMENT (ERD)
+
+Ruanasa Space
+
+Version: 1.6 (Updated)
+Platform: Web-Based Responsive Application
+Database Type: Relational Database (PostgreSQL recommended)
+
+------------------------------------------------------------------------
+
+1. DATABASE OVERVIEW
+
+Ruanasa Space menggunakan relational database untuk mengelola aktivitas wellness community secara end-to-end.
+
+Database dirancang berdasarkan pemisahan antara:
+- User & Authentication
+- Event & Instructor
+- Pricing & Discount
+- Registration & Participant
+- Payment
+- Attendance
+- Feedback
+- Notification
+
+Prinsip utama:
+- UUID sebagai primary key untuk semua tabel.
+- Phone number sebagai primary identifier user (unique), email sebagai secondary identifier (unique).
+- Semua peserta yang mendaftar event memiliki akun di tabel users (tidak ada guest tanpa akun).
+- Soft delete (deleted_at) pada tabel-tabel kritis.
+- Timestamp created_at pada semua tabel; updated_at pada tabel yang datanya dapat diubah (users, events, instructors, event_templates, registrations, payments, discount_codes).
+- Pemisahan User dan Participant sebagai entitas berbeda.
+- Pricing dikelola terpisah dari Event.
+- Participant list bersifat event-based, bukan global CRM.
+
+------------------------------------------------------------------------
+
+2. ENTITY LIST
+
+Core Entity:
+1. Users
+2. Events
+3. Registrations
+4. Participants
+5. Payments
+6. Attendance
+7. Feedback
+
+Supporting Entity:
+8. Instructors
+9. Specializations
+10. Instructor Specialization Mapping
+11. Event Templates
+12. Event Prices
+13. Event Pricing Rules
+14. Add-ons
+15. Registration Add-ons
+16. Discount Codes
+17. Notifications
+
+------------------------------------------------------------------------
+
+3. USERS TABLE
+
+Table: users
+
+Purpose: Menyimpan data akun semua pengguna. Setiap orang yang mendaftar event pasti memiliki record di tabel ini, baik melalui login eksplisit (Google, OTP) maupun auto-create (continue without login).
+
+Fields:
+- id (UUID, PK)
+- name (VARCHAR 100, NOT NULL)
+- phone_number (VARCHAR 20, NOT NULL, UNIQUE — primary identifier)
+- email (VARCHAR 255, NOT NULL, UNIQUE — secondary identifier)
+- role (ENUM: 'admin', 'participant', NOT NULL, DEFAULT 'participant')
+- auth_provider (ENUM: 'google', 'email_otp', 'whatsapp_otp', 'auto_created', NOT NULL)
+- password_hash (VARCHAR 255, NULLABLE — hanya diisi untuk admin)
+- profile_picture (VARCHAR 500, NULLABLE — URL)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- updated_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- deleted_at (TIMESTAMP, NULLABLE — soft delete)
+
+Indexes:
+- UNIQUE INDEX on phone_number (primary lookup)
+- UNIQUE INDEX on email (secondary lookup)
+- INDEX on role
+- INDEX on auth_provider
+- INDEX on deleted_at
+
+Relationships:
+- Users 1:N Registrations (via registrations.buyer_user_id)
+- Users 1:N Notifications (via notifications.user_id)
+
+Notes:
+- phone_number adalah primary identifier: sistem mengecek phone_number terlebih dahulu saat auto-create account.
+- auth_provider = 'auto_created' menandakan akun dibuat otomatis saat user memilih continue without login. Jika user kemudian login dengan Google/OTP, auth_provider diupdate ke metode terbaru.
+- Admin memiliki password_hash, participant tidak (passwordless).
+- Tidak ada konsep guest tanpa akun. Semua peserta memiliki record di tabel users.
+
+------------------------------------------------------------------------
+
+4. EVENTS TABLE
+
+Table: events
+
+Purpose: Menyimpan data event wellness.
+
+Fields:
+- id (UUID, PK)
+- template_id (UUID, NULLABLE, FK → event_templates.id)
+- instructor_id (UUID, NOT NULL, FK → instructors.id)
+- event_name (VARCHAR 150, NOT NULL)
+- activity_type (VARCHAR 50, NOT NULL)
+- description (TEXT, NOT NULL, MAX 5000 karakter)
+- poster_url (VARCHAR 500, NOT NULL)
+- date (DATE, NULLABLE — wajib terisi sebelum publish; boleh NULL pada draft hasil duplicate)
+- start_time (TIME, NULLABLE — wajib terisi sebelum publish; boleh NULL pada draft hasil duplicate)
+- end_time (TIME, NULLABLE — wajib terisi sebelum publish; boleh NULL pada draft hasil duplicate)
+- location (VARCHAR 500, NOT NULL)
+- capacity (INTEGER, NOT NULL, MIN 1)
+- status (ENUM: 'draft', 'published', 'completed', NOT NULL, DEFAULT 'draft')
+- completed_at (TIMESTAMP, NULLABLE — diisi otomatis saat status berubah ke 'completed')
+- post_event_sent (BOOLEAN, NOT NULL, DEFAULT false — flag apakah post-event notification sudah dikirim)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- updated_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- deleted_at (TIMESTAMP, NULLABLE — soft delete, hanya draft yang bisa dihapus)
+
+Indexes:
+- INDEX on status
+- INDEX on date
+- INDEX on instructor_id
+- INDEX on template_id
+- INDEX on deleted_at
+
+Relationships:
+- Events N:1 Instructors (via instructor_id)
+- Events N:1 Event Templates (via template_id)
+- Events 1:N Registrations
+- Events 1:N Event Prices
+- Events 1:N Event Pricing Rules
+- Events 1:N Add-ons
+- Events 1:N Attendance
+- Events 1:N Feedback
+
+Rules:
+- Publish hanya diizinkan jika date, start_time, dan end_time sudah terisi (CHECK di level aplikasi: status = 'published' → ketiganya NOT NULL).
+
+Status Transition Rules:
+- draft → published (allowed)
+- published → completed (allowed)
+- draft → deleted / soft delete (allowed)
+- published → draft (NOT allowed)
+- completed → any (NOT allowed)
+
+------------------------------------------------------------------------
+
+5. INSTRUCTORS TABLE
+
+Table: instructors
+
+Purpose: Menyimpan data instruktur wellness.
+
+Fields:
+- id (UUID, PK)
+- name (VARCHAR 100, NOT NULL)
+- profile_picture (VARCHAR 500, NULLABLE — URL)
+- bio (TEXT, NULLABLE, MAX 2000 karakter)
+- contact_information (VARCHAR 500, NULLABLE)
+- status (ENUM: 'active', 'inactive', NOT NULL, DEFAULT 'active')
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- updated_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Indexes:
+- INDEX on status
+
+Relationships:
+- Instructors 1:N Events (via events.instructor_id)
+- Instructors N:M Specializations (via instructor_specialization_mapping)
+
+Rules:
+- Hanya instructor berstatus active yang tampil di dropdown saat membuat event.
+- Instructor inactive tetap muncul di event lama.
+- Instructor tidak dapat dihapus jika terhubung dengan event berstatus published.
+
+------------------------------------------------------------------------
+
+6. SPECIALIZATIONS TABLE
+
+Table: specializations
+
+Purpose: Menyimpan tag keahlian instruktur.
+
+Fields:
+- id (UUID, PK)
+- name (VARCHAR 100, NOT NULL, UNIQUE)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Contoh data:
+- Vinyasa Yoga
+- Hatha Yoga
+- Yin Yoga
+- Meditation
+- Breathwork
+- Sound Healing
+
+------------------------------------------------------------------------
+
+7. INSTRUCTOR SPECIALIZATION MAPPING
+
+Table: instructor_specialization_mapping
+
+Purpose: Mapping many-to-many antara instructor dan specialization.
+
+Fields:
+- id (UUID, PK)
+- instructor_id (UUID, NOT NULL, FK → instructors.id, ON DELETE CASCADE)
+- specialization_id (UUID, NOT NULL, FK → specializations.id, ON DELETE CASCADE)
+
+Constraints:
+- UNIQUE (instructor_id, specialization_id)
+
+------------------------------------------------------------------------
+
+8. EVENT TEMPLATES TABLE
+
+Table: event_templates
+
+Purpose: Menyimpan template event yang bisa digunakan ulang.
+
+Fields:
+- id (UUID, PK)
+- name (VARCHAR 150, NOT NULL)
+- activity_type (VARCHAR 50, NOT NULL)
+- description (TEXT, NULLABLE, MAX 5000 karakter)
+- instructor_id (UUID, NULLABLE, FK → instructors.id)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- updated_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Relationships:
+- Event Templates 1:N Events (via events.template_id)
+
+Notes:
+- Template pada MVP TIDAK menyimpan add-on dan pricing.
+- instructor_id nullable karena instructor bisa diubah saat membuat event.
+
+------------------------------------------------------------------------
+
+9. REGISTRATIONS TABLE
+
+Table: registrations
+
+Purpose: Menyimpan data registrasi/booking per event. Satu registrasi bisa mencakup beberapa participant.
+
+Fields:
+- id (UUID, PK)
+- event_id (UUID, NOT NULL, FK → events.id)
+- buyer_user_id (UUID, NOT NULL, FK → users.id — selalu terisi karena semua peserta punya akun)
+- total_pax (INTEGER, NOT NULL, MIN 1)
+- subtotal (INTEGER, NOT NULL — pax_subtotal: harga per pax × total_pax sebelum discount, dalam Rupiah, TIDAK termasuk add-on)
+- discount_amount (INTEGER, NOT NULL, DEFAULT 0 — total potongan = bundle discount + promo discount)
+- total_payment (INTEGER, NOT NULL — jumlah yang harus dibayar = subtotal − discount_amount + total add-on, minimum 0)
+- discount_code_id (UUID, NULLABLE, FK → discount_codes.id — promo code yang digunakan)
+- payment_status (ENUM: 'pending_payment', 'paid', 'expired', NOT NULL, DEFAULT 'pending_payment')
+- registration_status (ENUM: 'pending', 'confirmed', 'expired', NOT NULL, DEFAULT 'pending')
+- payment_deadline (TIMESTAMP, NOT NULL — default: created_at + 60 menit)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- updated_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- deleted_at (TIMESTAMP, NULLABLE — soft delete)
+
+Indexes:
+- INDEX on event_id
+- INDEX on buyer_user_id
+- INDEX on payment_status
+- INDEX on registration_status
+- INDEX on payment_deadline
+- INDEX on discount_code_id
+- UNIQUE (event_id, buyer_user_id) WHERE deleted_at IS NULL AND registration_status <> 'expired' — partial unique index. Hanya registrasi aktif (pending/confirmed) yang diblokir. Registrasi expired tidak di-soft-delete dan tidak memblokir registrasi baru. Implementasi via raw SQL migration (Prisma tidak mendukung partial unique native).
+- INDEX on deleted_at
+
+Relationships:
+- Registrations N:1 Events (via event_id)
+- Registrations N:1 Users (via buyer_user_id)
+- Registrations N:1 Discount Codes (via discount_code_id, nullable)
+- Registrations 1:N Participants (via participants.registration_id)
+- Registrations 1:1 Payments (via payments.registration_id)
+- Registrations 1:N Registration Add-ons (via registration_addons.registration_id)
+
+Notes:
+- buyer_user_id selalu NOT NULL karena semua peserta pasti memiliki akun (termasuk auto_created).
+- Unique constraint menggunakan event_id + buyer_user_id (bukan email) karena semua peserta pasti punya akun.
+- Tidak diperlukan field buyer_name, buyer_email, buyer_phone terpisah di tabel registrations karena data buyer selalu bisa di-join dari tabel users melalui buyer_user_id.
+
+------------------------------------------------------------------------
+
+10. PARTICIPANTS TABLE
+
+Table: participants
+
+Purpose: Menyimpan data orang yang mengikuti event. Berbeda dengan Users.
+
+Fields:
+- id (UUID, PK)
+- registration_id (UUID, NOT NULL, FK → registrations.id, ON DELETE CASCADE)
+- user_id (UUID, NULLABLE, FK → users.id — NULL untuk peserta tambahan)
+- name (VARCHAR 100, NOT NULL)
+- is_buyer (BOOLEAN, NOT NULL, DEFAULT FALSE)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Indexes:
+- INDEX on registration_id
+- INDEX on user_id
+
+Relationships:
+- Participants N:1 Registrations (via registration_id)
+- Participants N:1 Users (via user_id, nullable)
+- Participants 1:1 Attendance (via attendance.participant_id, per event)
+- Participants 1:1 Feedback (via feedback.participant_id, per event)
+
+Business Rules:
+- Buyer yang ikut event: user_id = buyer's user ID, is_buyer = TRUE.
+- Peserta tambahan: user_id = NULL, is_buyer = FALSE, hanya menyimpan nama.
+
+------------------------------------------------------------------------
+
+11. PAYMENTS TABLE
+
+Table: payments
+
+Purpose: Menyimpan data transaksi pembayaran per registrasi.
+
+Fields:
+- id (UUID, PK)
+- registration_id (UUID, NOT NULL, UNIQUE, FK → registrations.id)
+- payment_method (ENUM: 'qris', 'bank_transfer', NOT NULL)
+- transaction_id (VARCHAR 255, NULLABLE — ID transaksi dari payment gateway)
+- amount (INTEGER, NOT NULL — dalam Rupiah)
+- status (ENUM: 'pending_payment', 'paid', 'expired', NOT NULL, DEFAULT 'pending_payment')
+- paid_at (TIMESTAMP, NULLABLE — diisi saat pembayaran berhasil)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- updated_at (TIMESTAMP, NOT NULL, DEFAULT NOW — berubah saat metode/transaksi diganti atau status berubah)
+
+Indexes:
+- UNIQUE INDEX on registration_id
+- INDEX on transaction_id
+- INDEX on status
+
+Relationships:
+- Payments 1:1 Registrations (via registration_id)
+
+Notes:
+- Payment record dibuat saat user pertama kali memilih metode pembayaran.
+- Selama status masih pending_payment, POST /payments boleh dipanggil ulang: baris payment yang sama di-update (payment_method, transaction_id, amount). UNIQUE registration_id tidak berubah.
+- transaction_id menyimpan order_id Midtrans dengan format {registration_id}-{unix_ts}.
+- status di payments dan payment_status di registrations harus selalu sinkron (update dalam satu database transaction).
+
+------------------------------------------------------------------------
+
+12. EVENT PRICES TABLE
+
+Table: event_prices
+
+Purpose: Menyimpan harga event (Normal, Early Bird).
+
+Fields:
+- id (UUID, PK)
+- event_id (UUID, NOT NULL, FK → events.id, ON DELETE CASCADE)
+- price_type (ENUM: 'normal', 'early_bird', NOT NULL)
+- price (INTEGER, NOT NULL — dalam Rupiah, MIN 0)
+- start_date (DATE, NULLABLE — wajib untuk early_bird)
+- end_date (DATE, NULLABLE — wajib untuk early_bird)
+- status (ENUM: 'active', 'inactive', NOT NULL, DEFAULT 'active')
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Indexes:
+- INDEX on event_id
+- INDEX on price_type
+- INDEX on status
+
+Relationships:
+- Event Prices N:1 Events (via event_id)
+
+Rules:
+- Setiap event wajib memiliki minimal 1 harga Normal yang active.
+- Early Bird harus memiliki start_date dan end_date.
+- Sistem mengecek tanggal registrasi: jika dalam periode early bird → harga early bird, jika tidak → harga normal.
+
+------------------------------------------------------------------------
+
+13. EVENT PRICING RULES TABLE
+
+Table: event_pricing_rules
+
+Purpose: Menyimpan aturan bundle discount berdasarkan jumlah pax.
+
+Fields:
+- id (UUID, PK)
+- event_id (UUID, NOT NULL, FK → events.id, ON DELETE CASCADE)
+- rule_type (ENUM: 'bundle', NOT NULL)
+- minimum_quantity (INTEGER, NOT NULL, MIN 2)
+- discount_type (ENUM: 'percentage', 'fixed_amount', NOT NULL)
+- discount_value (INTEGER, NOT NULL, MIN 1)
+- status (ENUM: 'active', 'inactive', NOT NULL, DEFAULT 'active')
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Indexes:
+- INDEX on event_id
+- INDEX on status
+
+Constraints:
+- UNIQUE (event_id, rule_type, minimum_quantity)
+- Jika discount_type = 'percentage': discount_value MAX 100.
+
+Relationships:
+- Event Pricing Rules N:1 Events (via event_id)
+
+Application Rule:
+- Sistem mengecek jumlah pax → pilih rule dengan minimum_quantity tertinggi yang terpenuhi.
+- Contoh: 3 pax → rule min 3 (15%) diterapkan, bukan rule min 2 (10%).
+- Jika discount_type = 'percentage': discount_value% × pax_subtotal (harga per pax × jumlah pax).
+- Jika discount_type = 'fixed_amount': discount_value × jumlah pax (per-pax fixed discount, bukan flat total).
+
+------------------------------------------------------------------------
+
+14. ADD-ONS TABLE
+
+Table: addons
+
+Purpose: Menyimpan data add-on per event.
+
+Fields:
+- id (UUID, PK)
+- event_id (UUID, NOT NULL, FK → events.id, ON DELETE CASCADE)
+- name (VARCHAR 100, NOT NULL)
+- description (VARCHAR 500, NULLABLE)
+- price (INTEGER, NOT NULL — dalam Rupiah, MIN 0)
+- available_quantity (INTEGER, NOT NULL, MIN 0)
+- max_purchase_quantity (INTEGER, NOT NULL, MIN 1)
+- status (ENUM: 'active', 'inactive', NOT NULL, DEFAULT 'active')
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Indexes:
+- INDEX on event_id
+- INDEX on status
+
+Relationships:
+- Add-ons N:1 Events (via event_id)
+- Add-ons 1:N Registration Add-ons (via registration_addons.addon_id)
+
+Rules:
+- Jika available_quantity = 0: add-on tidak ditampilkan.
+- Quantity berkurang saat registrasi dibuat (bukan saat confirmed), dikembalikan saat expired.
+
+------------------------------------------------------------------------
+
+15. REGISTRATION ADD-ONS TABLE
+
+Table: registration_addons
+
+Purpose: Menyimpan add-on yang dipilih per registrasi.
+
+Fields:
+- id (UUID, PK)
+- registration_id (UUID, NOT NULL, FK → registrations.id, ON DELETE CASCADE)
+- addon_id (UUID, NOT NULL, FK → addons.id)
+- quantity (INTEGER, NOT NULL, MIN 1)
+- subtotal (INTEGER, NOT NULL — price x quantity)
+
+Indexes:
+- INDEX on registration_id
+- INDEX on addon_id
+- UNIQUE (registration_id, addon_id)
+
+Relationships:
+- Registration Add-ons N:1 Registrations (via registration_id)
+- Registration Add-ons N:1 Add-ons (via addon_id)
+
+------------------------------------------------------------------------
+
+16. DISCOUNT CODES TABLE
+
+Table: discount_codes
+
+Purpose: Menyimpan data promo code.
+
+Fields:
+- id (UUID, PK)
+- code (VARCHAR 20, NOT NULL, UNIQUE — alphanumeric, case-insensitive)
+- discount_type (ENUM: 'percentage', 'fixed_amount', NOT NULL)
+- discount_value (INTEGER, NOT NULL, MIN 1)
+- quota (INTEGER, NOT NULL, MIN 1)
+- used_count (INTEGER, NOT NULL, DEFAULT 0)
+- expiry_date (DATE, NOT NULL)
+- status (ENUM: 'active', 'inactive', NOT NULL, DEFAULT 'active')
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+- updated_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Indexes:
+- UNIQUE INDEX on code
+- INDEX on status
+- INDEX on expiry_date
+
+Constraints:
+- Jika discount_type = 'percentage': discount_value MAX 100.
+- used_count tidak boleh melebihi quota.
+
+Relationships:
+- Discount Codes 1:N Registrations (via registrations.discount_code_id)
+
+Quota Management:
+- used_count bertambah saat registrasi dibuat (registration created, bukan saat confirmed).
+- used_count berkurang saat registration_status → 'expired'.
+
+------------------------------------------------------------------------
+
+17. ATTENDANCE TABLE
+
+Table: attendance
+
+Purpose: Menyimpan data kehadiran participant per event.
+
+Fields:
+- id (UUID, PK)
+- event_id (UUID, NOT NULL, FK → events.id)
+- participant_id (UUID, NOT NULL, FK → participants.id, ON DELETE CASCADE)
+- status (ENUM: 'not_checked', 'present', NOT NULL, DEFAULT 'not_checked')
+- checked_at (TIMESTAMP, NULLABLE)
+
+Indexes:
+- UNIQUE (event_id, participant_id)
+- INDEX on event_id
+- INDEX on status
+
+Relationships:
+- Attendance N:1 Events (via event_id)
+- Attendance 1:1 Participants (via participant_id, per event)
+
+Rules:
+- Record dibuat otomatis (not_checked) saat registration_status → confirmed.
+- Hanya participant dengan registration confirmed yang bisa ditandai present.
+- checked_at diisi otomatis saat toggle ke present.
+
+------------------------------------------------------------------------
+
+18. FEEDBACK TABLE
+
+Table: feedback
+
+Purpose: Menyimpan feedback dari participant setelah event.
+
+Fields:
+- id (UUID, PK)
+- event_id (UUID, NOT NULL, FK → events.id)
+- participant_id (UUID, NOT NULL, FK → participants.id)
+- token (VARCHAR 64, NOT NULL, UNIQUE)
+- rating (INTEGER, NULLABLE, MIN 1, MAX 5 — nullable karena feedback bisa hanya comment/suggestion)
+- comment (TEXT, NULLABLE, MAX 2000 karakter)
+- suggestion (TEXT, NULLABLE, MAX 2000 karakter)
+- submitted_at (TIMESTAMP, NULLABLE — diisi saat participant submit feedback. NULL jika belum submit.)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW — saat record dibuat, yaitu payment confirmed)
+
+Indexes:
+- UNIQUE (event_id, participant_id)
+- UNIQUE INDEX on token
+- INDEX on event_id
+
+Relationships:
+- Feedback N:1 Events (via event_id)
+- Feedback 1:1 Participants (via participant_id, per event)
+
+Rules:
+- Baris feedback dibuat untuk setiap participant saat payment confirmed (rating/comment/suggestion NULL, submitted_at NULL). Participant dianggap sudah submit jika submitted_at IS NOT NULL.
+- Hanya participant dengan attendance status present yang bisa submit.
+- Tidak bisa diedit setelah submit.
+- Token di-generate saat payment confirmed (attendance record dibuat). Token dikirim via post-event notification.
+- Rating bersifat optional — participant bisa submit hanya dengan comment/suggestion.
+- Perhitungan average rating, total feedback, dan distribusi hanya memakai baris dengan submitted_at IS NOT NULL.
+
+------------------------------------------------------------------------
+
+19. NOTIFICATIONS TABLE
+
+Table: notifications
+
+Purpose: Menyimpan data notifikasi (WhatsApp untuk participant, in-app untuk admin).
+
+Fields:
+- id (UUID, PK)
+- user_id (UUID, NOT NULL, FK → users.id — selalu terisi karena semua peserta punya akun)
+- event_id (UUID, NULLABLE, FK → events.id)
+- registration_id (UUID, NULLABLE, FK → registrations.id)
+- type (ENUM: 'registration_confirmation', 'event_reminder', 'post_event', 'admin_new_registration', 'admin_payment_success', 'admin_event_almost_full', NOT NULL)
+- channel (ENUM: 'whatsapp', 'in_app', NOT NULL)
+- message (TEXT, NOT NULL)
+- status (ENUM: 'pending', 'sent', 'failed', NOT NULL, DEFAULT 'pending')
+- sent_at (TIMESTAMP, NULLABLE)
+- is_read (BOOLEAN, NOT NULL, DEFAULT false — untuk in-app notification admin)
+- read_at (TIMESTAMP, NULLABLE — diisi saat admin membaca notifikasi)
+- created_at (TIMESTAMP, NOT NULL, DEFAULT NOW)
+
+Indexes:
+- INDEX on user_id
+- INDEX on event_id
+- INDEX on registration_id
+- INDEX on type
+- INDEX on channel
+- INDEX on status
+- INDEX on is_read
+
+Relationships:
+- Notifications N:1 Users (via user_id)
+- Notifications N:1 Events (via event_id, nullable)
+- Notifications N:1 Registrations (via registration_id, nullable)
+
+Notes:
+- user_id selalu NOT NULL karena semua peserta punya akun. Phone number untuk WhatsApp diambil dari users.phone_number via join.
+- Admin notification: channel = 'in_app', user_id = admin user ID.
+- Tidak ada auto-retry pada MVP.
+
+------------------------------------------------------------------------
+
+20. DATABASE RELATIONSHIP SUMMARY
+
+20.1 Core Relationships
+
+Users 1:N Registrations
+  - users.id → registrations.buyer_user_id (NOT NULL)
+
+Events 1:N Registrations
+  - events.id → registrations.event_id
+
+Registrations 1:N Participants
+  - registrations.id → participants.registration_id
+
+Registrations 1:1 Payments
+  - registrations.id → payments.registration_id (unique)
+
+Participants 1:1 Attendance (per event)
+  - participants.id → attendance.participant_id
+  - UNIQUE (event_id, participant_id)
+
+Participants 1:1 Feedback (per event)
+  - participants.id → feedback.participant_id
+  - UNIQUE (event_id, participant_id)
+
+20.2 Supporting Relationships
+
+Instructors 1:N Events
+  - instructors.id → events.instructor_id
+
+Instructors N:M Specializations
+  - Via instructor_specialization_mapping
+  - UNIQUE (instructor_id, specialization_id)
+
+Event Templates 1:N Events
+  - event_templates.id → events.template_id (nullable)
+
+Events 1:N Event Prices
+  - events.id → event_prices.event_id
+
+Events 1:N Event Pricing Rules
+  - events.id → event_pricing_rules.event_id
+
+Events 1:N Add-ons
+  - events.id → addons.event_id
+
+Registrations 1:N Registration Add-ons
+  - registrations.id → registration_addons.registration_id
+
+Add-ons 1:N Registration Add-ons
+  - addons.id → registration_addons.addon_id
+
+Discount Codes 1:N Registrations
+  - discount_codes.id → registrations.discount_code_id (nullable)
+
+Users 1:N Notifications
+  - users.id → notifications.user_id (NOT NULL)
+
+------------------------------------------------------------------------
+
+21. DESIGN PRINCIPLES
+
+21.1 No Guest Without Account
+
+Setiap orang yang mendaftar event pasti memiliki akun di tabel users. Saat continue without login, sistem mengecek phone_number (primary) dan email (secondary). Jika belum terdaftar, akun otomatis dibuat (auth_provider = 'auto_created'). Jika sudah terdaftar, user diminta login. Ini menyederhanakan query karena buyer_user_id selalu NOT NULL dan semua relasi bisa di-join melalui user ID.
+
+21.2 Phone Number as Primary Identifier
+
+phone_number adalah primary lookup saat pengecekan akun existing. Email adalah secondary check. Kedua field bersifat UNIQUE di tabel users. Urutan pengecekan: phone_number dulu, kemudian email.
+
+21.3 User vs Participant Separation
+
+User adalah entitas akun. Participant adalah entitas event. Satu user bisa menjadi participant di banyak event. Satu registrasi bisa memiliki banyak participant. Participant list bersifat event-based, bukan global CRM.
+
+21.4 Status Separation
+
+Payment Status (di registrations dan payments):
+- pending_payment
+- paid
+- expired
+
+Registration Status (di registrations):
+- pending
+- confirmed
+- expired
+
+Attendance Status (di attendance):
+- not_checked
+- present
+
+Event Status (di events):
+- draft
+- published
+- completed
+
+Notification Status (di notifications):
+- pending
+- sent
+- failed
+
+21.5 Pricing Separation
+
+Pricing dikelola terpisah dari tabel events:
+- Event Prices: harga normal dan early bird dengan periode.
+- Event Pricing Rules: bundle discount berdasarkan jumlah pax.
+- Discount Codes: promo code (tidak terikat ke satu event).
+
+21.6 Soft Delete
+
+Tabel dengan soft delete (deleted_at):
+- users — akun tidak dihapus permanen.
+- events — event draft yang dihapus.
+- registrations — hanya untuk koreksi/cleanup oleh admin. Registrasi expired TIDAK di-soft-delete.
+
+------------------------------------------------------------------------
+
+22. KEY CONSTRAINTS SUMMARY
+
+22.1 Unique Constraints
+
+- users.phone_number — satu nomor telepon satu akun (primary identifier).
+- users.email — satu email satu akun (secondary identifier).
+- specializations.name — nama specialization unik.
+- (instructor_specialization_mapping) instructor_id + specialization_id.
+- (registrations) event_id + buyer_user_id (partial: registrasi aktif, bukan expired, bukan soft-deleted) — satu user satu registrasi aktif per event.
+- payments.registration_id — satu registrasi satu payment.
+- (registration_addons) registration_id + addon_id.
+- (attendance) event_id + participant_id.
+- (feedback) event_id + participant_id.
+- discount_codes.code — kode promo unik.
+- feedback.token — token feedback unik.
+
+22.2 Key Indexes
+
+Performance-critical indexes:
+- users.phone_number — primary lookup saat auto-create check.
+- users.email — secondary lookup.
+- registrations.event_id — participant list per event.
+- registrations.buyer_user_id — history per user.
+- registrations.payment_status — filter by status.
+- registrations.registration_status — filter by status.
+- registrations.payment_deadline — scheduled job expiration.
+- participants.registration_id — join participant ke registration.
+- attendance.event_id — attendance per event.
+- events.status — filter event by status.
+- events.date — sort/filter by date.
+- discount_codes.code — lookup promo code.
+- notifications.type — filter by type.
+- notifications.status — monitoring delivery.
+
+------------------------------------------------------------------------
+
+23. SCHEDULED JOBS
+
+23.1 Payment Expiration Job
+
+- Frequency: setiap 5 menit.
+- Logic: cari registrasi dengan registration_status = 'pending' AND payment_deadline < NOW.
+- Action:
+  1. Update registration_status → 'expired'.
+  2. Kembalikan slot (recalculate available capacity).
+  3. Kembalikan add-on available_quantity.
+  4. Kembalikan discount code used_count (jika discount_code_id tidak null).
+  5. Jika payments row ada: update payments.status → 'expired' (sinkron dengan registrations.payment_status).
+
+23.2 Event Reminder Job
+
+- Frequency: setiap hari pukul 08:00 (atau waktu yang dikonfigurasi).
+- Logic: cari event dengan status = 'published' AND date = TOMORROW.
+- Action: kirim WhatsApp reminder ke semua buyer dengan registration_status = 'confirmed'. Phone number diambil dari users.phone_number via join registrations.buyer_user_id.
+
+23.3 Post-Event Notification Job (catch-up)
+
+- Frequency: setiap hari pukul 10:00 WIB (03:00 UTC).
+- Logic: cari event dengan status = 'completed' AND post_event_sent = false. Pengiriman utama dipicu saat event di-complete (asinkron); job ini hanya catch-up.
+- Action: kirim satu pesan WhatsApp per buyer confirmed berisi link feedback untuk setiap participant miliknya yang attendance = 'present', lalu set events.post_event_sent = true.
+
+------------------------------------------------------------------------
+
+24. MVP DATABASE GOAL
+
+Database harus mendukung:
+
+1. User management dengan phone number sebagai primary identifier dan auto-create account.
+2. Role-based access (admin / participant).
+3. Passwordless authentication (Google, Email OTP, WhatsApp OTP, auto_created) dan account linking.
+4. Event management dengan status flow (draft → published → completed).
+5. Event template dan duplicate event.
+6. Instructor management dengan specialization (many-to-many).
+7. Multi-participant registration (1 user, banyak participant).
+8. Flexible pricing: normal price, early bird (periode), bundle discount (jumlah pax).
+9. Add-on management per event dengan quantity tracking.
+10. Promo code dengan quota dan expiry management.
+11. Discount stacking (early bird + bundle + promo code).
+12. Payment processing via QRIS dan bank transfer.
+13. Payment expiration dengan automated slot/quota return.
+14. Event-based participant management (bukan global CRM).
+15. Attendance tracking (not_checked / present).
+16. Feedback collection dengan unique token access.
+17. Multi-channel notification (WhatsApp untuk participant, in-app untuk admin).
+18. Data export capability (participant list per event).
+19. Dashboard analytics data.
+20. Soft delete pada tabel kritis.
+21. Future-ready: struktur mendukung penambahan activity type, membership, dan multi-community tanpa perubahan skema utama.

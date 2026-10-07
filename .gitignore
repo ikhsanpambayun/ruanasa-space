@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+
+# env (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+
+npm-debug.log*
+
+# yarn
+.yarn/*
+!.yarn/releases
+!.yarn/patches
+!.yarn/plugins
+.pnp.*

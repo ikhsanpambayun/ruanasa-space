@@ -1,0 +1,2481 @@
+DEVELOPMENT TASK BREAKDOWN DOCUMENT (DTBD)
+
+Ruanasa Space
+
+Version: 1.6 (Updated)
+Platform: Web-Based Responsive Application
+Executor: AI Coding Assistant (Claude Code, Cursor, atau sejenisnya)
+
+
+========================================================================
+1. DOCUMENT PURPOSE
+========================================================================
+
+Dokumen ini adalah execution blueprint untuk membangun Ruanasa Space.
+Setiap task didefinisikan agar AI coding assistant dapat langsung mengeksekusi tanpa ambiguitas.
+
+Diselaraskan dengan:
+- PRD v1.5 (Product Requirement Document)
+- UFD v1.5 (User Flow Document)
+- SRD v1.5 (System Requirement Document)
+- ERD v1.6 (Database Schema Document)
+- UIUX Spec v1.5 (UI/UX Specification Document)
+- API Spec v1.6 (API Specification Document)
+- TAD v1.6 (Technical Architecture Document)
+
+
+========================================================================
+2. TASK FORMAT STANDARD
+========================================================================
+
+Setiap task memiliki field berikut:
+
+TASK ID       : Format P{phase}-{layer}-{number}
+                Layer: INF (Infrastructure), DB (Database), BE (Backend),
+                       FE (Frontend), INT (Integration), TEST (Testing)
+
+PRIORITY      : P0 (Critical MVP), P1 (Important MVP), P2 (Future)
+EFFORT        : S (Small, <2 jam), M (Medium, 2-4 jam), L (Large, 4-8 jam), XL (Very Large, >8 jam)
+DEPENDENCY    : Task ID yang harus selesai terlebih dahulu
+REFERENCE     : Dokumen dan section spesifik yang harus dibaca AI
+
+OBJECTIVE     : Apa yang harus dicapai
+INPUT         : Data, schema, atau spesifikasi yang digunakan
+OUTPUT        : File, module, endpoint, atau component yang dihasilkan
+
+ACCEPTANCE CRITERIA : Syarat task dianggap selesai (testable)
+VALIDATION    : Checklist validasi akhir
+
+
+========================================================================
+3. AI DEVELOPMENT RULES
+========================================================================
+
+3.1 Sebelum Mengerjakan Task
+
+AI WAJIB:
+1. Membaca semua dokumen di field REFERENCE
+2. Memeriksa dependency sudah selesai
+3. Memahami acceptance criteria
+
+3.2 Larangan
+
+AI TIDAK BOLEH:
+- Mengubah database schema tanpa update ERD v1.6
+- Mengubah API contract (endpoint, request/response) tanpa update API Spec v1.6
+- Mengubah business rules tanpa update PRD v1.5
+- Membuat field/kolom/endpoint di luar spesifikasi
+- Mengubah naming convention yang sudah ditetapkan
+- Menghapus test yang sudah passing
+
+3.3 Naming Convention
+
+Backend (NestJS):
+- Module file        : {module-name}.module.ts
+- Controller file    : {module-name}.controller.ts
+- Service file       : {module-name}.service.ts
+- Repository file    : {module-name}.repository.ts
+- DTO file           : {action}-{entity}.dto.ts (contoh: create-event.dto.ts)
+- Guard file         : {name}.guard.ts
+- Filter file        : {name}.filter.ts
+- Interceptor file   : {name}.interceptor.ts
+
+Frontend (Next.js):
+- Component file     : PascalCase.tsx (contoh: EventCard.tsx)
+- Hook file          : use{Name}.ts (contoh: useEventDetail.ts)
+- Service file       : {name}Service.ts (contoh: eventService.ts)
+- Store file         : {name}Store.ts (contoh: authStore.ts)
+- Type file          : {name}.ts di folder types/ (contoh: event.ts)
+- Page file          : page.tsx (Next.js App Router convention)
+- Layout file        : layout.tsx
+- Zod schema         : {name}.schema.ts
+
+Database:
+- Table name         : snake_case plural (contoh: event_prices)
+- Column name        : snake_case (contoh: buyer_user_id)
+- Index name         : idx_{table}_{column}
+
+3.4 Design & UI Reference
+
+Seluruh frontend task WAJIB menggunakan Stitch AI sebagai referensi design system dan UI design.
+
+AI WAJIB:
+- Menggunakan Stitch AI sebagai referensi utama untuk component styling, layout, dan visual design
+- Memastikan output visual konsisten dengan design system dari Stitch AI
+- Menggunakan component patterns dari Stitch AI sebagai basis, diimplementasikan dengan shadcn/ui + Tailwind CSS
+- Menyesuaikan design tokens (colors, typography, spacing) berdasarkan referensi Stitch AI dan UIUX Spec v1.5 Section 3
+
+Reference: UIUX Spec v1.5 Section 8 (Design & Development Tools)
+
+3.5 Code Style
+
+- Semua code dalam TypeScript strict mode
+- Semua API response menggunakan format standar: { success, message, data }
+- Error response: { success: false, message, error_code, errors }
+- Semua tanggal disimpan di database dalam UTC, ditampilkan di UI dalam WIB (Asia/Jakarta, UTC+7)
+- UUID sebagai primary key di semua tabel
+- Soft delete menggunakan deleted_at (TIMESTAMP, NULLABLE)
+- Semua query harus filter WHERE deleted_at IS NULL (kecuali perlu data terhapus)
+- Import order: external → internal → relative
+- Gunakan async/await, hindari callback nesting
+
+3.6 Validation Checklist (Wajib Per Task)
+
+Setiap task selesai harus di-check:
+[ ] Sesuai ERD schema (tabel, kolom, tipe data, constraint)
+[ ] Sesuai API contract (endpoint, method, request/response format)
+[ ] Business rule terpenuhi (sesuai PRD)
+[ ] Error handling tersedia (semua error case di API Spec)
+[ ] Security requirement terpenuhi (auth guard, role guard, validation)
+[ ] TypeScript strict — no any, no implicit types
+
+
+========================================================================
+4. DEVELOPMENT PHASES OVERVIEW
+========================================================================
+
+Phase 0  : Project Foundation & Infrastructure
+Phase 1  : Database Schema & Migration
+Phase 2  : Authentication & Authorization
+Phase 3  : Core Backend — User, Event, Master Data
+Phase 4  : Backend — Registration, Pricing, Payment
+Phase 5  : Backend — Operations (Participant, Attendance, Feedback)
+Phase 6  : Backend — Notification, Background Jobs, Analytics
+Phase 7  : Frontend Foundation & Shared Components
+Phase 8  : Frontend — Public Pages & Auth
+Phase 9  : Frontend — Registration, Payment, Profile
+Phase 10 : Frontend — Admin Dashboard & Management
+Phase 11 : Integration & End-to-End Testing
+Phase 12 : Deployment & Go-Live
+
+
+########################################################################
+PHASE 0 — PROJECT FOUNDATION & INFRASTRUCTURE
+########################################################################
+
+
+------------------------------------------------------------------------
+P0-INF-001 | Initialize Monorepo Structure
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : None
+Reference   : TAD v1.6 Section 1-4
+
+Objective:
+Membuat monorepo structure dengan apps/web (Next.js) dan apps/api (NestJS).
+
+Output:
+- Root package.json dengan workspaces
+- apps/web/ — Next.js 15+ project
+- apps/api/ — NestJS 11+ project
+- packages/shared/ — shared types dan utilities
+- .gitignore, .editorconfig, .prettierrc, .eslintrc
+
+Acceptance Criteria:
+- yarn install berhasil dari root (Yarn 4, workspaces, nodeLinker: node-modules)
+- apps/web dev server berjalan di port 3000
+- apps/api dev server berjalan di port 3001
+- packages/shared dapat diimport dari kedua apps
+- ESLint dan Prettier berjalan tanpa error
+
+
+------------------------------------------------------------------------
+P0-INF-002 | Setup Frontend Foundation
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P0-INF-001
+Reference   : TAD v1.6 Section 4.1-4.6, Section 5.1,
+              UIUX Spec v1.5 Section 3, Section 8 (Design & Development Tools)
+
+Objective:
+Konfigurasi lengkap Next.js 15+ dengan semua library yang dibutuhkan.
+Design system dan component styling mengacu pada Stitch AI.
+
+Output:
+- Next.js 15+ dengan App Router dan TypeScript strict
+- Tailwind CSS 3+ dengan design tokens dari UIUX Spec v1.5 Section 3
+- shadcn/ui terinstall dan dikonfigurasi
+- TanStack Query v5 dengan QueryClientProvider
+- Zustand stores: authStore, registrationStore, uiStore
+- React Hook Form v7+ dan Zod
+- Axios instance dengan interceptors (TAD Section 5.4)
+- Path aliases (@/ untuk src/)
+- Additional libraries: date-fns, lucide-react, sonner, recharts
+
+Acceptance Criteria:
+- Production build berhasil tanpa error
+- Tailwind design tokens (colors, spacing) sesuai UIUX Spec v1.5 Section 3 dan referensi Stitch AI
+- shadcn/ui Button, Input, Card component dapat dirender dengan styling sesuai Stitch AI
+- TanStack Query devtools muncul di development mode
+- Zustand store bisa read/write state
+- Axios instance menangani 401 redirect ke /login
+
+
+------------------------------------------------------------------------
+P0-INF-003 | Setup Backend Foundation
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P0-INF-001
+Reference   : TAD v1.6 Section 4.7-4.10, Section 6
+
+Objective:
+Konfigurasi lengkap NestJS 11+ dengan semua library dan module structure.
+
+Output:
+- NestJS 11+ dengan TypeScript strict
+- Module structure sesuai TAD Section 6.1 (18 module folders)
+- Environment configuration (@nestjs/config) dengan validation (Joi/Zod)
+- CORS configuration sesuai TAD Section 8.6
+- Rate limiting (@nestjs/throttler): auth 10/min, general 100/min, public event list 60/min, registration 5/min per user, auto-create 5/min, webhook 50/min
+- Global validation pipe (class-validator)
+- Global exception filter (http-exception.filter.ts)
+- Response transform interceptor (wrap { success, message, data })
+- Logging interceptor
+- Timeout interceptor (30s default)
+- Health check endpoint: GET /api/v1/health
+
+Acceptance Criteria:
+- NestJS server berjalan di port 3001
+- GET /api/v1/health returns { success: true, message: "OK", data: { status, timestamp, uptime } }
+- CORS mengizinkan frontend origin
+- Rate limiter aktif (test: 11 request ke auth endpoint dalam 1 menit → 429)
+- Global exception filter mengembalikan format error standar
+- Environment variables divalidasi saat startup (missing env → error)
+
+
+------------------------------------------------------------------------
+P0-INF-004 | Setup Environment Variables
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : S
+Dependency  : P0-INF-002, P0-INF-003
+Reference   : TAD v1.6 Section 21
+
+Objective:
+Membuat .env.example dan .env.local untuk semua environment variables.
+
+Output:
+- apps/web/.env.example dan .env.local
+- apps/api/.env.example dan .env.local
+- Daftar lengkap environment variables sesuai TAD Section 21
+
+Acceptance Criteria:
+- Semua env vars terdokumentasi di .env.example
+- .env.local tidak ter-commit (.gitignore)
+- Backend startup gagal jika required env var kosong
+
+
+########################################################################
+PHASE 1 — DATABASE SCHEMA & MIGRATION
+########################################################################
+
+
+------------------------------------------------------------------------
+P1-DB-001 | Setup Prisma & Initial Connection
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P0-INF-003
+Reference   : TAD v1.6 Section 4.8-4.9, Section 7
+
+Objective:
+Setup Prisma ORM 6+ dengan PostgreSQL connection ke Supabase.
+
+Output:
+- prisma/schema.prisma dengan datasource configuration
+- PrismaModule dan PrismaService (singleton)
+- Connection menggunakan Supabase PgBouncer URL (port 6543)
+- prisma generate berhasil
+
+Acceptance Criteria:
+- npx prisma db pull berhasil connect ke database
+- PrismaService injectable di module lain
+- Connection pooling via PgBouncer aktif
+
+
+------------------------------------------------------------------------
+P1-DB-002 | Create Full Database Schema
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P1-DB-001
+Reference   : ERD v1.6 Section 3-19 (semua 17 tabel)
+
+Objective:
+Membuat lengkap 17 tabel di Prisma schema sesuai ERD v1.6.
+
+Output (prisma/schema.prisma):
+- users (ERD Section 3)
+- events (ERD Section 4)
+- instructors (ERD Section 5)
+- specializations (ERD Section 6)
+- instructor_specialization_mapping (ERD Section 7)
+- event_templates (ERD Section 8)
+- registrations (ERD Section 9)
+- participants (ERD Section 10)
+- payments (ERD Section 11)
+- event_prices (ERD Section 12)
+- event_pricing_rules (ERD Section 13)
+- addons (ERD Section 14)
+- registration_addons (ERD Section 15)
+- discount_codes (ERD Section 16)
+- attendance (ERD Section 17)
+- feedback (ERD Section 18)
+- notifications (ERD Section 19)
+- Raw SQL migration: CREATE UNIQUE INDEX ... ON registrations (event_id, buyer_user_id) WHERE deleted_at IS NULL AND registration_status <> 'expired' (Prisma tidak mendukung partial unique native)
+
+Acceptance Criteria:
+- npx prisma migrate dev berhasil tanpa error
+- Semua 17 tabel terbuat di database
+- UUID default menggunakan gen_random_uuid() atau uuid()
+- Semua foreign key dan relationship sesuai ERD
+- Semua index sesuai ERD (UNIQUE, INDEX)
+- Enum types sesuai ERD (role, status, payment_method, dll)
+- Soft delete (deleted_at NULLABLE) di tabel yang sesuai
+- created_at di semua tabel; updated_at di tabel yang sesuai ERD
+- Registrasi expired tidak memblokir registrasi baru untuk event yang sama
+- events.date, start_time, end_time NULLABLE (wajib terisi saat publish, divalidasi di service)
+- updated_at ada di users, events, instructors, event_templates, registrations, payments, discount_codes (sesuai ERD Section 1)
+
+
+------------------------------------------------------------------------
+P1-DB-003 | Create Seed Data
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P1-DB-002
+Reference   : ERD v1.6, TAD v1.6 Section 4.9
+
+Objective:
+Membuat seed data untuk development dan testing.
+
+Output:
+- prisma/seed.ts
+
+Seed data:
+- 1 admin user (email: admin@ruanasaspace.com, phone_number: 081200000000 [placeholder, wajib karena kolom NOT NULL UNIQUE], password: hashed bcrypt 12 rounds)
+- 3 specializations (Vinyasa Yoga, Hatha Yoga, Yin Yoga)
+- 2 instructors (dengan specialization mapping)
+- 2 sample events (1 draft, 1 published dengan pricing dan add-on)
+- 1 discount code (active, percentage 10%)
+
+Acceptance Criteria:
+- npx prisma db seed berhasil
+- Admin user bisa login dengan credentials di atas
+- Sample data muncul di database
+
+
+########################################################################
+PHASE 2 — AUTHENTICATION & AUTHORIZATION
+########################################################################
+
+
+------------------------------------------------------------------------
+P2-BE-001 | JWT Authentication Core
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P1-DB-002
+Reference   : TAD v1.6 Section 4.10 (JWT Specification),
+              API Spec v1.6 Section 3.11 (Logout),
+              SRD v1.5 Section 4.4
+
+Objective:
+Implementasi JWT authentication system dengan httpOnly cookie.
+
+Output:
+- src/modules/auth/auth.module.ts
+- src/modules/auth/auth.service.ts (token generation, validation, blacklist)
+- src/modules/auth/strategies/jwt.strategy.ts
+- src/modules/auth/guards/jwt-auth.guard.ts
+- src/modules/auth/decorators/current-user.decorator.ts
+
+Implementation Detail:
+- Algorithm: HS256
+- Secret: JWT_SECRET dari environment variable (min 256-bit)
+- Expiry: 7 hari (sliding window — perpanjang setiap authenticated request)
+- Payload: { sub: user_id, role: "admin"|"participant", iat, exp }
+- Delivery: httpOnly cookie (primary, Set-Cookie: token=...; HttpOnly; Secure; SameSite=Strict; Path=/) + Authorization Bearer header (fallback)
+- Prioritas: Cookie dicek dahulu, jika tidak ada maka cek Bearer header
+- Blacklisting: simpan invalidated token di in-memory Map sampai expiry
+- Logout: POST /auth/logout — blacklist current token, clear cookie
+
+Acceptance Criteria:
+- JWT token digenerate dengan payload yang benar
+- Token tersimpan di httpOnly cookie DAN dikembalikan di response body (untuk Bearer usage)
+- Protected endpoint menerima token dari cookie ATAU Bearer header
+- Protected endpoint menolak request tanpa token (401)
+- Protected endpoint menolak expired token (401)
+- Logout menghapus cookie dan blacklist token
+- Sliding window: token baru dikirim di response setiap authenticated request
+- @CurrentUser() decorator mengembalikan user object dari token
+
+
+------------------------------------------------------------------------
+P2-BE-002 | Role-Based Authorization
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P2-BE-001
+Reference   : TAD v1.6 Section 4.10 (Admin Authentication),
+              API Spec v1.6 Section 6 header (admin endpoints)
+
+Objective:
+Implementasi role guard untuk memisahkan akses admin dan participant.
+
+Output:
+- src/modules/auth/guards/roles.guard.ts
+- src/modules/auth/decorators/roles.decorator.ts
+
+Implementation Detail:
+- @Roles('admin') decorator
+- RolesGuard: check payload.role terhadap required roles
+- Admin endpoints (/admin/*) dilindungi oleh @Roles('admin')
+- Participant endpoints dilindungi oleh @Roles('participant')
+
+Acceptance Criteria:
+- Participant tidak bisa akses /admin/* (403)
+- Admin tidak bisa akses participant-only endpoints (403)
+- Endpoint tanpa @Roles bisa diakses semua authenticated user
+
+
+------------------------------------------------------------------------
+P2-BE-003 | Google OAuth Login
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P2-BE-001
+Reference   : API Spec v1.6 Section 3.1-3.2,
+              TAD v1.6 Section 4.10 (Participant Auth Methods),
+              UIUX Spec v1.5 Section 5.3.1
+
+Objective:
+Implementasi Google OAuth login dengan auto-create dan account linking.
+
+Output:
+- src/modules/auth/auth.controller.ts: POST /auth/google, POST /auth/google/complete
+- Google OAuth strategy (passport-google-oauth20)
+- Auto-create / account linking logic di auth.service.ts
+
+Flow:
+1. Frontend kirim id_token (dari Google Sign-In)
+2. Backend verify id_token, extract email + name
+3. Cek user by email:
+   - Existing user → generate JWT, return user + token + is_new_user: false
+   - New user → return temp_token + name + email + is_new_user: true + requires_phone: true
+4. POST /auth/google/complete: user kirim temp_token + phone_number
+   - Cek phone_number sudah terdaftar → 409 PHONE_ALREADY_EXISTS
+   - Buat user baru (auth_provider: 'google') → generate JWT
+5. Account linking: jika email match dengan user auto_created → update auth_provider ke 'google'
+
+Acceptance Criteria:
+- Login existing Google user → JWT + user data
+- Login new Google user → temp_token + requires_phone
+- Complete registration new user → user dibuat + JWT
+- Phone number sudah terdaftar → 409
+- Account linking: auto_created user dengan email sama → auth_provider updated ke 'google'
+
+
+------------------------------------------------------------------------
+P2-BE-004 | Email OTP Authentication
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P2-BE-001
+Reference   : API Spec v1.6 Section 3.3-3.5,
+              TAD v1.6 Section 4.10 (OTP Specification),
+              UIUX Spec v1.5 Section 5.3.2,
+              SRD v1.5 Section 4.5
+
+Objective:
+Implementasi Email OTP login/register dengan rate limiting.
+
+Output:
+- POST /auth/email/request-otp
+- POST /auth/email/verify-otp
+- POST /auth/email/complete
+- Email adapter (Resend) di notifications module
+
+OTP Specification:
+- Format: 6 digit angka
+- Expiry: 5 menit
+- Max attempts: 5 per OTP session
+- Rate limit: 3 request per 15 menit per email
+- Storage: OTP di-hash SHA-256 sebelum disimpan
+- Delivery: Resend email API
+
+Flow:
+1. Request OTP → generate 6 digit, hash SHA-256, simpan ke DB/cache, kirim email
+2. Verify OTP → cek hash match, cek expiry, cek attempts
+   - Existing user → JWT + user
+   - New user → temp_token + requires_profile (name + phone)
+3. Complete → create user, generate JWT
+
+Acceptance Criteria:
+- OTP 6 digit dikirim ke email
+- OTP valid → login/register berhasil
+- OTP expired (>5 menit) → 400 OTP_EXPIRED
+- OTP salah → 400 OTP_INVALID, attempt count bertambah
+- OTP salah 5x → 429 OTP_MAX_ATTEMPTS
+- Request OTP >3x dalam 15 menit → 429 OTP_RATE_LIMITED
+- Account linking: auto_created user → auth_provider updated
+
+
+------------------------------------------------------------------------
+P2-BE-005 | WhatsApp OTP Authentication
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P2-BE-001
+Reference   : API Spec v1.6 Section 3.6-3.8,
+              TAD v1.6 Section 4.10, 4.16,
+              UIUX Spec v1.5 Section 5.3.3
+
+Objective:
+Implementasi WhatsApp OTP login/register.
+
+Output:
+- POST /auth/whatsapp/request-otp
+- POST /auth/whatsapp/verify-otp
+- POST /auth/whatsapp/complete
+- WhatsApp adapter di notifications module
+
+Flow: Sama seperti Email OTP, tapi:
+- Input: phone_number (bukan email)
+- OTP dikirim via WhatsApp provider
+- New user memerlukan: name + email (bukan name + phone)
+
+Acceptance Criteria:
+- OTP dikirim via WhatsApp ke phone number
+- Semua OTP rules sama dengan Email OTP
+- New user → temp_token + requires_profile (name + email)
+- Account linking: auto_created user dengan phone sama → auth_provider updated
+
+
+------------------------------------------------------------------------
+P2-BE-006 | Auto Account Creation (Continue Without Login)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P2-BE-001
+Reference   : API Spec v1.6 Section 3.9,
+              UIUX Spec v1.5 Section 5.3.4,
+              ERD v1.6 Section 3 (users — auth_provider: auto_created)
+
+Objective:
+Implementasi auto-create account dengan phone sebagai primary identifier.
+
+Output:
+- POST /auth/auto-create
+
+Flow:
+1. Terima name, phone_number, email
+2. Cek phone_number di users → DITEMUKAN → 409 PHONE_ALREADY_EXISTS
+3. Cek email di users → DITEMUKAN → 409 EMAIL_ALREADY_EXISTS
+4. Buat user baru (auth_provider: 'auto_created')
+5. Generate JWT, return user + token
+
+Acceptance Criteria:
+- Akun baru berhasil dibuat dengan auth_provider = 'auto_created'
+- Phone number sudah terdaftar → 409 (cek duluan sebelum email)
+- Email sudah terdaftar → 409
+- Validation: format phone Indonesia, format email valid, name required
+- JWT dikembalikan → user langsung authenticated
+
+
+------------------------------------------------------------------------
+P2-BE-007 | Admin Login
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P2-BE-001, P1-DB-003
+Reference   : API Spec v1.6 Section 3.10,
+              TAD v1.6 Section 4.10 (Admin Authentication)
+
+Objective:
+Implementasi admin login dengan email + password.
+
+Output:
+- POST /auth/admin/login
+
+Implementation Detail:
+- Cek email di users WHERE role = 'admin'
+- Compare password_hash menggunakan bcrypt
+- Generate JWT dengan role: 'admin'
+
+Acceptance Criteria:
+- Admin login berhasil → JWT dengan role admin
+- Wrong password → 401 AUTH_FAILED
+- Wrong email → 401 AUTH_FAILED (same error, jangan expose apakah email ada)
+- Non-admin email → 401 AUTH_FAILED
+
+
+########################################################################
+PHASE 3 — CORE BACKEND (User, Event, Master Data)
+########################################################################
+
+
+------------------------------------------------------------------------
+P3-BE-001 | User Profile API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P2-BE-001
+Reference   : API Spec v1.6 Section 4 (4.1-4.3),
+              ERD v1.6 Section 3
+
+Objective:
+Implementasi user profile endpoints.
+
+Output:
+- src/modules/users/ (module, controller, service, repository, dto)
+- GET /users/profile
+- PUT /users/profile
+- GET /users/event-history
+
+Acceptance Criteria:
+- GET /users/profile → return user data (tanpa password_hash)
+- PUT /users/profile → update name, email, phone_number
+- PUT /users/profile: phone/email sudah dipakai user lain → 409
+- GET /users/event-history → return paginated list of past registrations + attendance_status
+- Semua endpoint require participant auth
+
+
+------------------------------------------------------------------------
+P3-BE-002 | Event CRUD API (Admin)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P2-BE-002
+Reference   : API Spec v1.6 Section 6 (6.1-6.10),
+              ERD v1.6 Section 4,
+              UIUX Spec v1.5 Section 6.3
+
+Objective:
+Implementasi lengkap Event management untuk admin.
+
+Output:
+- src/modules/events/ (module, controller, events-admin.controller, service, repository, dto)
+- GET /admin/events (list, paginated, filterable by status/search)
+- GET /admin/events/:id (detail)
+- POST /admin/events (create, status: draft)
+- PUT /admin/events/:id (update)
+- DELETE /admin/events/:id (soft delete, draft only)
+- POST /admin/events/:id/publish (draft → published, require min 1 normal price + date/start_time/end_time terisi)
+- POST /admin/events/:id/complete (published → completed, set completed_at; memanggil PostEventService secara asinkron — diimplementasikan di P6-BE-004, gunakan interface/stub sebelum itu)
+- POST /admin/events/:id/duplicate (copy all except date/time/registrations; date, start_time, end_time = NULL)
+- GET /admin/events/:id/share (public_url + qr_code_url)
+- POST /admin/events/:id/send-post-event (completed only)
+
+Status Transition Rules:
+- draft → published (allowed, requires min 1 active normal price)
+- published → completed (allowed)
+- draft → soft delete (allowed)
+- published → draft (NOT allowed)
+- completed → any (NOT allowed)
+
+Acceptance Criteria:
+- CRUD berhasil dengan validation sesuai API Spec
+- Status transition rules enforced
+- Published event tanpa normal price → 400 MISSING_PRICE
+- Publish tanpa date/start_time/end_time → 400 VALIDATION_ERROR
+- Delete published event → 403 EVENT_DELETE_NOT_ALLOWED
+- Update completed event → 403 EVENT_COMPLETED
+- Duplicate: semua data ter-copy kecuali date/time dan registrations (date, start_time, end_time = NULL), status = draft
+- Pagination dan search berfungsi
+
+
+------------------------------------------------------------------------
+P3-BE-003 | Event Public API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P3-BE-002
+Reference   : API Spec v1.6 Section 5 (5.1-5.2),
+              UIUX Spec v1.5 Section 5.1-5.2
+
+Objective:
+Implementasi public event endpoints (no auth required).
+
+Output:
+- GET /events (list published events, upcoming only)
+- GET /events/:id (detail with instructor, pricing, add-ons, capacity)
+
+Acceptance Criteria:
+- Hanya event published & tanggal belum lewat yang ditampilkan
+- Response include: current_price, original_price, is_early_bird, bundle_discount, available_slots
+- Event detail include: instructor info + specializations, pricing, add-ons, capacity
+- No auth required
+- Pagination berfungsi
+- Filter by activity_type
+
+
+------------------------------------------------------------------------
+P3-BE-004 | Instructor Management API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P2-BE-002
+Reference   : API Spec v1.6 Section 8 (8.1-8.6),
+              ERD v1.6 Section 5-7
+
+Objective:
+Implementasi instructor CRUD dengan specialization mapping.
+
+Output:
+- src/modules/instructors/ (module, controller, service, repository, dto)
+- GET /admin/instructors (list with specializations)
+- GET /admin/instructors/:id (detail)
+- POST /admin/instructors (create with specialization_ids)
+- PUT /admin/instructors/:id (update)
+- DELETE /admin/instructors/:id (check active events)
+- GET /admin/instructors/active (dropdown data)
+
+Acceptance Criteria:
+- CRUD berhasil dengan specialization mapping (many-to-many)
+- Delete instructor dengan active published event → 403 INSTRUCTOR_HAS_ACTIVE_EVENT
+- GET /admin/instructors/active → hanya instructor status active
+
+
+------------------------------------------------------------------------
+P3-BE-005 | Specialization Management API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : S
+Dependency  : P2-BE-002
+Reference   : API Spec v1.6 Section 9 (9.1-9.4),
+              ERD v1.6 Section 6
+
+Objective:
+Implementasi specialization CRUD.
+
+Output:
+- src/modules/specializations/ (module, controller, service, repository, dto)
+- GET /admin/specializations (list with instructor_count)
+- POST /admin/specializations (create, unique name)
+- PUT /admin/specializations/:id (update)
+- DELETE /admin/specializations/:id
+
+Acceptance Criteria:
+- Duplicate name → 409 SPECIALIZATION_EXISTS
+- List menampilkan instructor_count per specialization
+
+
+------------------------------------------------------------------------
+P3-BE-006 | Event Template Management API
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P3-BE-002
+Reference   : API Spec v1.6 Section 7 (7.1-7.5),
+              ERD v1.6 Section 8,
+              UIUX Spec v1.5 Section 6.4
+
+Objective:
+Implementasi event template CRUD.
+
+Output:
+- src/modules/templates/ (module, controller, service, repository, dto)
+- GET /admin/event-templates (list)
+- GET /admin/event-templates/:id (detail)
+- POST /admin/event-templates (create)
+- PUT /admin/event-templates/:id (update)
+- DELETE /admin/event-templates/:id
+
+Acceptance Criteria:
+- Template menyimpan: name, activity_type, description, instructor_id
+- Template TIDAK menyimpan pricing atau add-on
+- Create event dari template → data auto-fill
+
+
+------------------------------------------------------------------------
+P3-BE-007 | Event Pricing Management API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P3-BE-002
+Reference   : API Spec v1.6 Section 10 (10.1-10.7),
+              ERD v1.6 Section 12-13
+
+Objective:
+Implementasi event pricing (prices + bundle rules) management.
+
+Output:
+- src/modules/pricing/ (module, controller, service, repository, dto)
+- GET /admin/events/:event_id/pricing (prices + rules)
+- POST /admin/events/:event_id/prices (create normal/early_bird)
+- PUT /admin/events/:event_id/prices/:price_id (update)
+- DELETE /admin/events/:event_id/prices/:price_id
+- POST /admin/events/:event_id/pricing-rules (create bundle)
+- PUT /admin/events/:event_id/pricing-rules/:rule_id (update)
+- DELETE /admin/events/:event_id/pricing-rules/:rule_id
+
+Acceptance Criteria:
+- Normal price: tanpa date range
+- Early bird: wajib start_date dan end_date
+- Bundle rule: minimum_quantity min 2, percentage max 100
+- Publish event memerlukan min 1 active normal price
+
+
+------------------------------------------------------------------------
+P3-BE-008 | Add-on Management API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P3-BE-002
+Reference   : API Spec v1.6 Section 11 (11.1-11.4),
+              ERD v1.6 Section 14
+
+Objective:
+Implementasi add-on per event management.
+
+Output:
+- src/modules/addons/ (module, controller, service, repository, dto)
+- GET /admin/events/:event_id/addons (list)
+- POST /admin/events/:event_id/addons (create)
+- PUT /admin/events/:event_id/addons/:addon_id (update)
+- DELETE /admin/events/:event_id/addons/:addon_id
+
+Acceptance Criteria:
+- Add-on terikat ke event (event_id FK)
+- Fields: name, description, price, available_quantity, max_purchase_quantity, status
+- Status toggle active/inactive berfungsi
+
+
+------------------------------------------------------------------------
+P3-BE-009 | Discount Code Management API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P2-BE-002
+Reference   : API Spec v1.6 Section 12 (12.1-12.4),
+              ERD v1.6 Section 16
+
+Objective:
+Implementasi discount code CRUD dan public validation.
+
+Output:
+- src/modules/discounts/ (module, controller, service, repository, dto)
+- GET /admin/discount-codes (list, paginated, filterable)
+- POST /admin/discount-codes (create)
+- PUT /admin/discount-codes/:id (update)
+- POST /discount-codes/validate (public, participant auth)
+
+Acceptance Criteria:
+- Create: code unique (auto-uppercase), percentage max 100, expiry_date future
+- Duplicate code → 409 PROMO_CODE_EXISTS
+- Validate: cek status active, quota belum habis, belum expired
+- Invalid promo → 400 dengan spesifik error_code (INVALID_PROMO, PROMO_EXPIRED, PROMO_QUOTA_EXHAUSTED, PROMO_INACTIVE)
+
+
+------------------------------------------------------------------------
+P3-BE-010 | File Upload API
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P2-BE-002
+Reference   : API Spec v1.6 Section 6.11,
+              TAD v1.6 Section 4.11
+
+Objective:
+Implementasi file upload ke Supabase Storage.
+
+Output:
+- src/modules/uploads/ (module, controller, service)
+- POST /admin/upload/poster (multipart/form-data)
+
+Implementation Detail:
+- Max file size: 5 MB
+- Allowed formats: JPG, JPEG, PNG, WebP
+- Upload ke Supabase Storage public bucket
+- Return CDN URL
+
+Acceptance Criteria:
+- Upload image berhasil → return URL
+- File terlalu besar → 400 FILE_TOO_LARGE
+- Format tidak didukung → 400 INVALID_FILE_FORMAT
+- URL yang dikembalikan bisa diakses publik
+
+
+########################################################################
+PHASE 4 — BACKEND: Registration, Pricing, Payment
+########################################################################
+
+
+------------------------------------------------------------------------
+P4-BE-001 | Pricing Calculation Engine
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P3-BE-007, P3-BE-008, P3-BE-009
+Reference   : API Spec v1.6 Section 13.1,
+              TAD v1.6 Section 10 (Pricing Architecture)
+
+Objective:
+Implementasi pricing calculation engine dengan discount stacking.
+
+Output:
+- src/modules/registrations/registrations.service.ts (calculatePrice method)
+- POST /pricing/calculate
+
+Calculation Order (WAJIB sesuai urutan ini):
+1. Determine base price: early_bird (jika aktif) ATAU normal
+2. Calculate pax subtotal: base_price × total_pax
+3. Apply bundle discount: cari rule tertinggi yang match (min_quantity ≤ total_pax)
+   - Jika percentage: pax_subtotal × (discount_value / 100)
+   - Jika fixed_amount: discount_value × total_pax (per-pax fixed discount)
+4. Calculate after_bundle = pax_subtotal - bundle_discount
+5. Calculate add-on subtotal: sum(addon_price × quantity)
+6. Apply promo code discount pada after_bundle (TIDAK termasuk add-on)
+   - Jika percentage: after_bundle × (discount_value / 100)
+   - Jika fixed_amount: discount_value
+7. Total payment = (pax_subtotal - bundle_discount - promo_discount) + addon_subtotal
+8. MINIMUM Rp0 (total tidak boleh negatif)
+
+Acceptance Criteria:
+- Early bird price digunakan saat early_bird aktif
+- Bundle discount terapply pada multiple pax
+- Promo code discount terapply
+- Stacking: Early Bird + Bundle + Promo semua bisa berlaku bersamaan
+- Total payment minimum = 0 (tidak negatif)
+- Response format sesuai API Spec v1.6 Section 13.1 (breakdown lengkap)
+
+
+------------------------------------------------------------------------
+P4-BE-002 | Registration Core Service
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P4-BE-001, P2-BE-006
+Reference   : API Spec v1.6 Section 13.2-13.3,
+              ERD v1.6 Section 9-11, 15,
+              TAD v1.6 Section 9
+
+Objective:
+Implementasi registration creation dengan slot reservation dan participant management.
+
+Output:
+- src/modules/registrations/ (module, controller, service, repository, dto)
+- POST /registrations (create)
+- GET /registrations/:id (detail)
+
+Flow (dalam satu database transaction):
+1. Validate event: published, date belum lewat
+2. Check capacity: SUM(total_pax) WHERE registration_status IN ('pending','confirmed') + total_pax ≤ capacity
+3. Check duplicate: registrasi aktif (bukan expired, bukan soft-deleted) untuk buyer_user_id + event_id → 409 DUPLICATE_REGISTRATION
+4. Calculate final price (use pricing engine)
+5. Create registration (status: pending, payment_status: pending_payment)
+6. Create participants (buyer is_buyer: true + additional participants)
+7. Create registration_addons
+8. Deduct slot, add-on quantity, promo used_count (stock deduction saat registration created)
+9. Payment deadline = created_at + 60 minutes
+10. Buat admin notification admin_new_registration via NotificationService (interface/stub di Phase 4; implementasi nyata di P6-BE-001/P6-BE-002). Kegagalan notifikasi tidak boleh menggagalkan transaksi registrasi.
+
+Acceptance Criteria:
+- Registration berhasil dengan semua participants dan add-ons tersimpan
+- Event penuh → 400 EVENT_FULL
+- Slot tidak cukup → 400 INSUFFICIENT_SLOTS
+- Duplicate registration aktif (same user + same event, status pending/confirmed) → 409 DUPLICATE_REGISTRATION
+- Registrasi expired sebelumnya tidak memblokir registrasi baru (daftar ulang berhasil)
+- Buyer data auto-fill dari authenticated user
+- Payment deadline 60 menit dari creation
+
+
+------------------------------------------------------------------------
+P4-BE-003 | Payment Integration (Midtrans)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P4-BE-002
+Reference   : API Spec v1.6 Section 14 (14.1-14.5),
+              TAD v1.6 Section 4.15, Section 11
+
+Objective:
+Implementasi payment creation dan webhook handling dengan Midtrans.
+
+Output:
+- src/modules/payments/ (module, controller, service, repository, dto)
+- POST /payments (create payment → Midtrans)
+- GET /payments/:payment_id/status
+- POST /payments/webhook (Midtrans callback)
+- POST /admin/payments/:payment_id/check (manual check)
+- GET /admin/events/:event_id/payments (admin payments list, paginated, filter payment_status)
+
+Payment Creation (POST /payments — saat user memilih metode pembayaran):
+- Payment record DIBUAT di sini (bukan saat registrasi dibuat)
+- Support: QRIS dan Bank Transfer
+- Midtrans Core API (Node.js SDK)
+- order_id = {registration_id}-{unix_ts}, disimpan di payments.transaction_id; custom_expiry = sisa waktu payment_deadline
+- Jika payment pending sudah ada: batalkan transaksi lama, update baris yang sama (payment_method, transaction_id, amount)
+
+Webhook Handler (dalam satu database transaction, 11 steps):
+1. Verify HMAC-SHA512 signature (Midtrans server key)
+2. Cari payment via payments.transaction_id (= order_id) dan verifikasi amount. Tidak ditemukan (mis. transaksi lama yang sudah diganti metode) → log warning, balas 200
+3. Idempotency check: jika payment sudah paid → return 200 OK, skip processing
+4. Jika registrasi expired → jangan proses, log critical, balas 200
+5. Update payments.status → paid, payments.paid_at → now
+6. Update registrations.payment_status → paid dan registrations.registration_status → confirmed
+7. Create attendance records (not_checked) untuk setiap participant
+8. Buat baris feedback (token unik, tanpa expiry) untuk setiap participant. Tabel feedback, bukan feedback_tokens. Token di-generate di sini, BUKAN saat post-event.
+9. Trigger WhatsApp notification (registration confirmation) ke buyer
+10. Trigger admin notification (admin_payment_success)
+11. Check event capacity: jika sisa ≤ 10% → trigger admin notification (admin_event_almost_full)
+
+Catatan: payment dicari lewat payments.transaction_id (sudah ter-index). Langkah 9-11 memanggil NotificationService (interface/stub di Phase 4, implementasi nyata di Phase 6); kegagalan notifikasi tidak boleh membatalkan transaksi.
+
+Acceptance Criteria:
+- Payment create: QRIS → return qr_code_url; Bank Transfer → return va_number
+- Webhook: signature invalid → 403
+- Webhook: payment sudah paid (idempotent) → 200 OK tanpa duplicate processing
+- Webhook: semua 11 steps di atas terjadi dalam transaction
+- Webhook untuk registrasi expired tidak mengubah status (200, log critical)
+- Registration expired → 400 REGISTRATION_EXPIRED
+- Already paid → 400 ALREADY_PAID
+- Ganti metode pada payment pending berhasil
+- Manual check: query Midtrans API untuk status terbaru
+- Admin payments list mengembalikan metode, deadline, paid_at
+
+
+------------------------------------------------------------------------
+P4-BE-004 | Payment Expiration Background Job
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P4-BE-003
+Reference   : TAD v1.6 Section 13.1
+
+Objective:
+Background job untuk expire payment yang lewat deadline.
+
+Output:
+- src/jobs/payment-expiration.job.ts
+
+Schedule: */5 * * * * (setiap 5 menit, 5-field cron format)
+
+Process:
+1. Query registrations WHERE payment_status = 'pending_payment' AND payment_deadline < NOW()
+2. Update registration_status → 'expired' (registrasi TIDAK di-soft-delete)
+3. Update registrations.payment_status → 'expired' dan payments.status → 'expired' (jika payments row ada)
+4. Release reserved slots (slot otomatis tersedia karena dihitung via SUM query, tidak perlu decrement)
+5. Release add-on quantity (jika ada)
+6. Restore discount code used_count (jika discount_code_id not null)
+
+Acceptance Criteria:
+- Job berjalan setiap 5 menit
+- Registration yang lewat payment_deadline → expired
+- Slot, add-on quantity, dan promo quota dikembalikan
+- Registration yang sudah paid TIDAK terpengaruh
+
+
+########################################################################
+PHASE 5 — BACKEND: Operations
+########################################################################
+
+
+------------------------------------------------------------------------
+P5-BE-001 | Participant Management API (Admin)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P4-BE-002
+Reference   : API Spec v1.6 Section 15,
+              UIUX Spec v1.5 Section 6.7
+
+Objective:
+Implementasi participant list per event untuk admin.
+
+Output:
+- src/modules/participants/ (module, controller, service, repository, dto)
+- GET /admin/events/:event_id/participants (list, paginated, searchable, filterable)
+
+Acceptance Criteria:
+- Search by nama, email, phone
+- Filter by payment_status, registration_status, attendance_status
+- Response include summary: total, confirmed, pending, expired
+- Setiap item memuat attendance_id (null jika registrasi belum confirmed)
+- Pagination berfungsi
+
+
+------------------------------------------------------------------------
+P5-BE-002 | Attendance Management API (Admin)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P4-BE-003
+Reference   : API Spec v1.6 Section 16,
+              ERD v1.6 Section 17,
+              UIUX Spec v1.5 Section 6.9
+
+Objective:
+Implementasi attendance management untuk admin.
+
+Output:
+- src/modules/attendance/ (module, controller, service, repository, dto)
+- GET /admin/events/:event_id/attendance (list)
+- PATCH /admin/attendance/:id (toggle check-in: not_checked ↔ present)
+
+Acceptance Criteria:
+- List attendance per event: participant_name, attendance_status, checked_in_at
+- Toggle check-in: not_checked → present (set checked_in_at), present → not_checked (clear checked_in_at)
+- Hanya participant dengan registration confirmed yang punya attendance record
+
+
+------------------------------------------------------------------------
+P5-BE-003 | Feedback API
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : L
+Dependency  : P4-BE-003
+Reference   : API Spec v1.6 Section 17,
+              ERD v1.6 Section 18,
+              UIUX Spec v1.5 Section 5.8
+
+Objective:
+Implementasi feedback system dengan token-based access.
+
+Output:
+- src/modules/feedback/ (module, controller, service, repository, dto)
+- GET /feedback/:token (get feedback form data — no auth required)
+- POST /feedback/:token (submit feedback — no auth required)
+- GET /admin/events/:event_id/feedback (admin list)
+
+Feedback Token:
+- Generated saat payment confirmed (saat attendance record dibuat)
+- Unique per participant per event
+- Token dalam URL: /feedback/{token}
+- Token dikirim via post-event notification WhatsApp
+- Tidak memerlukan login untuk mengakses
+
+Submit Validation:
+- attendance_status harus 'present' (hanya peserta hadir bisa feedback)
+- Belum pernah submit (submitted_at IS NULL; submit mengisi submitted_at)
+- Rating: 1-5, NULLABLE (optional — bisa submit hanya dengan comment/suggestion)
+- Comment: optional, max 2000 karakter
+- Suggestion: optional, max 2000 karakter
+- Minimal salah satu field (rating/comment/suggestion) harus diisi
+
+Acceptance Criteria:
+- Token valid + present + belum submit → form muncul
+- Token valid + already submitted → "Sudah mengisi feedback"
+- Token valid + not present → "Feedback hanya untuk peserta hadir"
+- Token invalid → "Link tidak valid"
+- Submit berhasil → update feedback record
+- Admin list: semua feedback per event + average rating
+- Admin list dan summary hanya menghitung submitted_at NOT NULL; average rating dari rating NOT NULL
+
+
+------------------------------------------------------------------------
+P5-BE-004 | Export API (Admin)
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P5-BE-001
+Reference   : API Spec v1.6 Section 20,
+              UIUX Spec v1.5 Section 6.7
+
+Objective:
+Implementasi CSV/Excel export untuk participant data.
+
+Output:
+- src/modules/exports/ (module, controller, service)
+- GET /admin/events/:event_id/participants/export?format=csv|xlsx
+
+Acceptance Criteria:
+- Export CSV dan XLSX berhasil dengan kolom: nama, email, phone, payment_status, attendance_status
+- File ter-download dengan nama: participants_{event_name}_{date}.csv atau .xlsx
+- Format default: csv, mendukung xlsx via query param
+
+
+########################################################################
+PHASE 6 — BACKEND: Notification, Background Jobs, Analytics
+########################################################################
+
+
+------------------------------------------------------------------------
+P6-BE-001 | Notification Service (WhatsApp + Email Adapter)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P0-INF-003
+Reference   : TAD v1.6 Section 4.16-4.17, Section 12,
+              API Spec v1.6 Section 18
+
+Objective:
+Implementasi notification service dengan adapter pattern untuk WhatsApp dan Email.
+
+Output:
+- src/modules/notifications/ (module, service, repository, dto)
+- src/modules/notifications/adapters/whatsapp.adapter.ts
+- src/modules/notifications/adapters/email.adapter.ts
+
+Adapter Pattern:
+- interface NotificationProvider { send(to, template, data): Promise<Result> }
+- WhatsAppAdapter implements NotificationProvider (Fonnte/Wablas)
+- EmailAdapter implements NotificationProvider (Resend)
+
+WhatsApp Notifications:
+- Registration confirmation (trigger: payment webhook success)
+- Event reminder H-1 (trigger: daily cron)
+- Post-event + feedback link (trigger: event complete)
+
+Acceptance Criteria:
+- WhatsApp adapter mengirim pesan via provider API
+- Email adapter mengirim email via Resend
+- Provider bisa diganti tanpa mengubah business logic
+- Notification log tersimpan di notifications table (ERD Section 19)
+
+
+------------------------------------------------------------------------
+P6-BE-002 | Admin In-App Notification API
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P6-BE-001
+Reference   : API Spec v1.6 Section 18,
+              ERD v1.6 Section 19,
+              UIUX Spec v1.5 Section 6.11 (notification bell)
+
+Objective:
+Implementasi in-app notification untuk admin.
+
+Output:
+- GET /admin/notifications (list, paginated)
+- PATCH /admin/notifications/:id/read (mark single as read)
+- POST /admin/notifications/read-all (mark all as read)
+- GET /admin/notifications/unread-count
+
+Notification Types:
+- admin_new_registration
+- admin_payment_success
+- admin_event_almost_full
+
+Acceptance Criteria:
+- Notification tersimpan di database saat event terjadi
+- List: menampilkan newest first, paginated
+- Mark read: is_read → true, read_at → now
+- Unread count untuk badge di bell icon
+
+
+------------------------------------------------------------------------
+P6-BE-003 | Event Reminder Background Job
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P6-BE-001
+Reference   : TAD v1.6 Section 13.2
+
+Objective:
+Daily job untuk kirim reminder H-1 event.
+
+Output:
+- src/jobs/event-reminder.job.ts
+
+Schedule: 0 1 * * * (01:00 UTC = 08:00 WIB daily)
+
+Process:
+1. Query events WHERE date = TOMORROW AND status = 'published'
+2. Untuk setiap event: query confirmed registrations → get buyer phone numbers
+3. Kirim WhatsApp reminder ke setiap buyer
+
+Acceptance Criteria:
+- Reminder dikirim H-1 event jam 08:00 WIB
+- Hanya untuk event published dengan registrasi confirmed
+- WhatsApp message berisi: event name, date, time, location
+
+
+------------------------------------------------------------------------
+P6-BE-004 | Post-Event Background Job
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P6-BE-001, P5-BE-003, P3-BE-002
+Reference   : TAD v1.6 Section 13.3
+
+Objective:
+Job untuk proses post-event notification. Pengiriman utama dipicu saat event di-complete (asinkron); job harian hanya catch-up untuk event completed dengan post_event_sent = false.
+
+Output:
+- src/jobs/post-event.job.ts
+- PostEventService (logika pengiriman, dipakai bersama oleh trigger complete, job, dan endpoint manual)
+- Wiring: EventsService.complete (P3-BE-002) memanggil PostEventService secara asinkron setelah status → completed
+- POST /admin/events/:id/send-post-event (endpoint dari P3-BE-002; manual trigger, completed only, memanggil PostEventService yang sama)
+
+Schedule: 0 3 * * * (03:00 UTC = 10:00 WIB daily)
+
+Process:
+1. Query events WHERE status = 'completed' AND post_event_sent = false (tanpa filter hari)
+   ATAU admin trigger manual via POST /admin/events/:id/send-post-event
+2. Per event: satu pesan WhatsApp per buyer confirmed berisi link feedback untuk setiap participant yang present
+   Phone number diambil dari users.phone_number via JOIN registrations.buyer_user_id
+3. Set events.post_event_sent = true
+
+Note: Feedback token sudah di-generate saat payment confirmed (bukan di sini).
+
+Acceptance Criteria:
+- WhatsApp berisi: event name, thank you, feedback link, documentation link
+- Event dengan post_event_sent = true TIDAK diproses ulang
+- Setelah notifikasi dikirim, post_event_sent diupdate ke true
+- Admin dapat trigger manual untuk event tertentu
+- Event yang di-complete setelah jam job tetap diproses
+- Complete event memicu pengiriman post-event secara asinkron (tidak menunggu job harian)
+
+
+------------------------------------------------------------------------
+P6-BE-005 | Analytics API (Admin)
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : L
+Dependency  : P5-BE-001, P5-BE-002, P5-BE-003
+Reference   : API Spec v1.6 Section 19,
+              UIUX Spec v1.5 Section 6.2
+
+Objective:
+Implementasi analytics/dashboard data untuk admin.
+
+Output:
+- src/modules/analytics/ (module, controller, service, dto)
+- GET /admin/dashboard
+- GET /admin/analytics
+
+Dashboard Response:
+- upcoming_events_count
+- completed_events_count
+- total_participants (confirmed)
+- total_revenue (paid)
+- average_attendance_rate
+- average_feedback_rating
+- registration_trend (per week/month)
+- revenue_trend (per event)
+- recent_notifications (5 terbaru)
+
+Acceptance Criteria:
+- Semua metrics terhitung dengan benar dari database
+- Revenue hanya dari payment status = paid
+- Attendance rate = present / total attendance records
+- Feedback rating = average dari feedback yang sudah submit (submitted_at NOT NULL, rating NOT NULL)
+
+
+########################################################################
+PHASE 7 — FRONTEND FOUNDATION & SHARED COMPONENTS
+########################################################################
+
+
+------------------------------------------------------------------------
+P7-FE-001 | Layout Components
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P0-INF-002
+Reference   : UIUX Spec v1.5 Section 4.1, 4.2, 6.1, 8 (Design & Development Tools),
+              TAD v1.6 Section 5.1
+
+Objective:
+Membuat layout components untuk participant dan admin. Styling mengacu pada Stitch AI.
+
+Output:
+- src/components/layout/ParticipantLayout.tsx (mobile-first, navbar, sticky bottom CTA area)
+- src/components/layout/AdminLayout.tsx (desktop-first, sidebar + header + main content)
+- src/components/layout/AdminSidebar.tsx (collapsible sidebar with navigation items)
+- src/components/layout/AdminHeader.tsx (search, notification bell, admin profile dropdown)
+- src/components/layout/StickyBottomCTA.tsx (participant: fixed bottom action button)
+- src/app/layout.tsx (root layout with providers: QueryClientProvider, ThemeProvider)
+- src/app/(public)/layout.tsx
+- src/app/(participant)/layout.tsx
+- src/app/admin/layout.tsx
+
+Admin Sidebar Navigation Items (sesuai UIUX Spec Section 6.1):
+- Dashboard
+- Event Management
+- Event Templates
+- Instructors
+- Specializations
+- Promo Codes
+- Analytics
+
+Acceptance Criteria:
+- Participant layout: mobile-first, navbar di atas, responsive
+- Admin layout: sidebar collapsible, header with bell icon, responsive grid
+- Active navigation item ter-highlight
+- Sidebar collapse di tablet width
+
+
+------------------------------------------------------------------------
+P7-FE-002 | Shared UI Components
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P0-INF-002
+Reference   : UIUX Spec v1.5 Section 3, 5, 6, 8 (Design & Development Tools),
+              TAD v1.6 Section 4.3
+
+Objective:
+Membuat reusable shared components berdasarkan referensi design dari Stitch AI.
+
+Output:
+- src/components/shared/EventCard.tsx (poster, name, date, price, slot indicator — UIUX 5.1)
+- src/components/shared/InstructorCard.tsx (avatar, name, specializations)
+- src/components/shared/StatusBadge.tsx (draft/published/completed, payment status, attendance)
+- src/components/shared/PriceDisplay.tsx (normal/early_bird strikethrough, bundle teaser)
+- src/components/shared/CountdownTimer.tsx (mm:ss countdown for payment)
+- src/components/shared/StarRating.tsx (1-5 star input for feedback)
+- src/components/shared/CapacityBar.tsx (progress bar X dari Y slot)
+- src/components/shared/EmptyState.tsx (illustration + message + CTA)
+- src/components/shared/SkeletonLoader.tsx (loading skeleton variants)
+- src/components/shared/DataTable.tsx (sortable, paginated table for admin)
+- src/components/shared/ConfirmModal.tsx (confirmation dialog: delete, publish, complete)
+- src/components/shared/PageHeader.tsx (page title + action buttons)
+
+Acceptance Criteria:
+- Semua component menggunakan design tokens dari Tailwind config dan referensi Stitch AI
+- StatusBadge: warna sesuai semantic colors di UIUX Spec Section 3.1
+- EventCard: menampilkan early bird badge, bundle teaser, slot indicator sesuai UIUX Spec 5.1
+- DataTable: sortable columns, pagination controls, search input
+- Responsive: mobile-friendly untuk participant components, desktop-optimized untuk admin
+
+
+------------------------------------------------------------------------
+P7-FE-003 | API Client & Services
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P0-INF-002
+Reference   : TAD v1.6 Section 5.4, 5.1 (services/)
+
+Objective:
+Membuat API client layer dan service functions.
+
+Output:
+- src/lib/axios.ts (configured instance with interceptors per TAD Section 5.4)
+- src/lib/queryClient.ts (TanStack Query configuration)
+- src/services/authService.ts (login, logout, register, OTP)
+- src/services/eventService.ts (list, detail, CRUD admin)
+- src/services/registrationService.ts (calculate price, create, get detail)
+- src/services/paymentService.ts (create, get status)
+- src/services/userService.ts (profile, event history)
+- src/services/instructorService.ts (CRUD)
+- src/services/templateService.ts (CRUD)
+- src/services/addonService.ts (CRUD per event)
+- src/services/discountService.ts (CRUD, validate)
+- src/services/participantService.ts (list per event)
+- src/services/attendanceService.ts (list, toggle)
+- src/services/feedbackService.ts (get, submit, admin list)
+- src/services/notificationService.ts (list, mark read, unread count)
+- src/services/analyticsService.ts (dashboard, detail)
+- src/services/exportService.ts (download CSV/XLSX)
+- src/services/uploadService.ts (upload poster)
+
+Acceptance Criteria:
+- Axios interceptor: 401 → clear auth state + redirect /login
+- Axios interceptor: 422 → parse field-level errors
+- Axios interceptor: 429 → show rate limit toast
+- Setiap service function return typed response
+- TanStack Query hooks wrapping service calls (stale time, caching)
+
+
+------------------------------------------------------------------------
+P7-FE-004 | TypeScript Types & Zod Schemas
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P0-INF-002
+Reference   : ERD v1.6 (all tables),
+              API Spec v1.6 (all response types),
+              TAD v1.6 Section 5.1 (types/)
+
+Objective:
+Membuat TypeScript type definitions dan Zod validation schemas.
+
+Output:
+- src/types/user.ts, event.ts, registration.ts, payment.ts, instructor.ts, addon.ts, discount.ts, feedback.ts, notification.ts, api.ts
+- src/lib/validators.ts (Zod schemas for all forms)
+
+Acceptance Criteria:
+- Semua API response types terdefinisi
+- Zod schemas sesuai validation rules di SRD v1.5 Section 23
+- Shared types importable dari packages/shared jika monorepo
+
+
+------------------------------------------------------------------------
+P7-FE-005 | Frontend Middleware (Auth & Route Guard)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P7-FE-003
+Reference   : TAD v1.6 Section 5.3
+
+Objective:
+Implementasi Next.js middleware untuk auth dan route protection.
+
+Output:
+- src/middleware.ts
+
+Rules:
+- /admin/* → require auth + role admin, else redirect /login
+- /events/[id]/register, /payment/*, /confirmation/*, /profile → require auth, else redirect /login
+- /login → if already authenticated, redirect / (participant) or /admin (admin)
+- Public routes (/, /events/[id], /feedback/*) → no guard
+
+Acceptance Criteria:
+- Unauthenticated user ke protected route → redirect /login
+- Participant ke /admin → redirect /
+- Authenticated user ke /login → redirect based on role
+- JWT dibaca dari cookie di middleware
+
+
+########################################################################
+PHASE 8 — FRONTEND: Public Pages & Authentication
+########################################################################
+
+
+------------------------------------------------------------------------
+P8-FE-001 | Event Listing Page (Home)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P7-FE-001, P7-FE-002, P7-FE-003, P3-BE-003
+Reference   : UIUX Spec v1.5 Section 5.1,
+              API Spec v1.6 Section 5.1
+
+Objective:
+Implementasi halaman utama event listing (public, no auth).
+
+Output:
+- src/app/(public)/page.tsx
+- src/features/events/components/EventList.tsx
+- src/features/events/hooks/useEvents.ts
+
+Acceptance Criteria:
+- Menampilkan EventCard list (SSR untuk SEO)
+- Sorting by date (upcoming first)
+- Filter by activity_type
+- Pagination (load more atau infinite scroll)
+- Early bird badge + harga coret tampil sesuai UIUX Spec
+- Slot indicator: normal, "Hampir Penuh!", "Event Penuh"
+- Empty state jika tidak ada event
+
+
+------------------------------------------------------------------------
+P8-FE-002 | Event Detail Page
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P8-FE-001
+Reference   : UIUX Spec v1.5 Section 5.2,
+              API Spec v1.6 Section 5.2
+
+Objective:
+Implementasi halaman event detail (public, no auth).
+
+Output:
+- src/app/(public)/events/[id]/page.tsx
+- src/features/events/components/EventDetail.tsx
+- src/features/events/hooks/useEventDetail.ts
+
+Acceptance Criteria:
+- Poster full-width, event info lengkap
+- Instructor card: avatar, name, specializations, bio
+- Pricing section: current price, early bird info, bundle discount info
+- Add-on section (jika ada)
+- Capacity bar + slot info
+- Sticky bottom CTA: "Daftar Sekarang" (→ check auth → /login atau /events/[id]/register)
+- Event penuh → "Event Penuh" banner, tombol hidden
+- Event selesai → "Event Telah Selesai" info
+
+
+------------------------------------------------------------------------
+P8-FE-003 | Authentication Pages
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P7-FE-003, P2-BE-003, P2-BE-004, P2-BE-005, P2-BE-006
+Reference   : UIUX Spec v1.5 Section 5.3 (5.3.1-5.3.4),
+              API Spec v1.6 Section 3
+
+Objective:
+Implementasi semua authentication flow di frontend.
+
+Output:
+- src/app/(auth)/login/page.tsx (login options)
+- src/app/(auth)/register/page.tsx (auto-create form)
+- src/features/auth/components/LoginOptions.tsx
+- src/features/auth/components/GoogleLoginButton.tsx
+- src/features/auth/components/OTPRequestForm.tsx (email + whatsapp)
+- src/features/auth/components/OTPVerifyForm.tsx (6-digit input, auto-focus, auto-advance)
+- src/features/auth/components/CompleteProfileForm.tsx (name + phone/email for new users)
+- src/features/auth/components/AutoCreateForm.tsx (name + phone + email)
+- src/features/auth/hooks/useAuth.ts
+- src/features/auth/hooks/useOTP.ts
+- src/features/auth/hooks/useAutoCreate.ts
+- src/stores/authStore.ts (user data, login status, role)
+
+Flows:
+1. Google OAuth → redirect → callback → JWT / requires_phone form
+2. Email OTP → request form → OTP verify → JWT / requires_profile form
+3. WhatsApp OTP → request form → OTP verify → JWT / requires_profile form
+4. Continue Without Login → auto-create form → phone/email check → JWT / error alerts
+
+Error States (sesuai UIUX Spec 5.3.2):
+- OTP expired, OTP salah, OTP max attempts, rate limited
+- Phone/email sudah terdaftar (with login options redirect)
+
+Acceptance Criteria:
+- Semua 4 login methods berfungsi end-to-end
+- OTP input: 6 digit, auto-focus next, auto-advance
+- Countdown timer "Kirim ulang OTP dalam XX:XX"
+- Auto-create: phone check dulu, lalu email check (sesuai priority)
+- Phone/email conflict → inline warning + login options
+- Setelah login → redirect ke intended page (atau event listing)
+
+
+------------------------------------------------------------------------
+P8-FE-004 | Error Pages
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : S
+Dependency  : P7-FE-001
+Reference   : UIUX Spec v1.5 Section 5.9
+
+Objective:
+Implementasi error pages.
+
+Output:
+- src/app/not-found.tsx (404)
+- src/app/error.tsx (error boundary)
+
+Acceptance Criteria:
+- 404: illustration, "Halaman tidak ditemukan", tombol "Kembali ke Beranda"
+- Error boundary: generic error message, tombol retry
+
+
+########################################################################
+PHASE 9 — FRONTEND: Registration, Payment, Profile
+########################################################################
+
+
+------------------------------------------------------------------------
+P9-FE-001 | Registration Wizard (5-Step)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P8-FE-003, P4-BE-001, P4-BE-002
+Reference   : UIUX Spec v1.5 Section 5.4 (5.4.1-5.4.5),
+              API Spec v1.6 Section 13
+
+Objective:
+Implementasi multi-step registration form.
+
+Output:
+- src/app/(participant)/events/[id]/register/page.tsx
+- src/features/registration/components/RegistrationWizard.tsx
+- src/features/registration/components/StepParticipant.tsx (step 1: buyer data)
+- src/features/registration/components/StepPax.tsx (step 2: pax count + names)
+- src/features/registration/components/StepAddon.tsx (step 3: add-on selection)
+- src/features/registration/components/StepDiscount.tsx (step 4: auto-applied + promo code)
+- src/features/registration/components/StepReview.tsx (step 5: order review)
+- src/features/registration/hooks/useRegistration.ts
+- src/features/registration/hooks/useCalculatePrice.ts
+- src/stores/registrationStore.ts (wizard state)
+
+Step Details:
+1. Participant Data: auto-fill from profile, inline validation (email, phone format)
+2. Select Pax: number stepper, dynamic name fields for pax > 1, slot check, bundle preview
+3. Add-on: add-on list with quantity selectors, running total (skip if no add-ons)
+4. Discount: auto-applied (early bird, bundle) read-only badges, promo code input + validate
+5. Review: full breakdown, "Bayar Sekarang" button → POST /registrations → redirect payment
+
+Acceptance Criteria:
+- Stepper/progress indicator di atas menunjukkan step saat ini
+- Step 1: data auto-filled, inline real-time validation
+- Step 2: slot check saat pax berubah, dynamic name fields
+- Step 3: skip jika tidak ada add-on
+- Step 4: auto-applied discounts sebagai info badges, promo code validate via API
+- Step 5: price breakdown lengkap (dari POST /pricing/calculate), total prominent
+- "Bayar Sekarang" → create registration → redirect ke payment page
+- Back button di setiap step
+- registrationStore: ephemeral, reset saat page refresh
+
+
+------------------------------------------------------------------------
+P9-FE-002 | Payment Page
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P9-FE-001, P4-BE-003
+Reference   : UIUX Spec v1.5 Section 5.5,
+              API Spec v1.6 Section 14
+
+Objective:
+Implementasi payment page dengan countdown dan status polling.
+
+Output:
+- src/app/(participant)/payment/[registrationId]/page.tsx
+- src/features/payment/components/PaymentMethodSelector.tsx
+- src/features/payment/components/QRISPayment.tsx (QR code + countdown)
+- src/features/payment/components/BankTransferPayment.tsx (VA number + copy + countdown)
+- src/features/payment/hooks/usePayment.ts
+- src/features/payment/hooks/usePaymentStatus.ts (polling)
+
+Acceptance Criteria:
+- Payment method selection: QRIS / Bank Transfer
+- QRIS: QR code tampil, scannable, total amount, countdown timer
+- Bank Transfer: VA number + copy button, total amount, instructions, countdown
+- Countdown timer: warning color saat < 10 menit
+- Saat halaman di-reload, state payment (metode, QR/VA, expires_at) dibaca dari objek `payment` pada GET /registrations/:id
+- Polling payment status setiap 5 detik
+- Status paid → redirect ke confirmation page
+- Status expired → "Waktu habis" message + "Daftar Ulang" button
+- State "Failed" = error PAYMENT_GATEWAY_ERROR dari POST /payments → "Gagal" message + "Coba Lagi" button
+- "Coba Lagi" dan "Ganti Metode" memanggil ulang POST /payments (diizinkan selama payment masih pending_payment)
+
+
+------------------------------------------------------------------------
+P9-FE-003 | Confirmation Page
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P9-FE-002
+Reference   : UIUX Spec v1.5 Section 5.6
+
+Objective:
+Implementasi confirmation page setelah payment success.
+
+Output:
+- src/app/(participant)/confirmation/[registrationId]/page.tsx
+
+Acceptance Criteria:
+- Success icon + "Registrasi Berhasil!" heading
+- Event info: name, date, time, location
+- Participant list (numbered)
+- Add-on yang dibeli
+- Total payment
+- Status badge: "Confirmed"
+- "Konfirmasi juga dikirim via WhatsApp" info text
+- Buttons: "Lihat Event Lain", "Lihat Profil"
+
+
+------------------------------------------------------------------------
+P9-FE-004 | Profile & Event History Page
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P8-FE-003, P3-BE-001
+Reference   : UIUX Spec v1.5 Section 5.7,
+              API Spec v1.6 Section 4
+
+Objective:
+Implementasi profile page dengan event history.
+
+Output:
+- src/app/(participant)/profile/page.tsx
+- src/features/profile/components/ProfileCard.tsx
+- src/features/profile/components/EventHistory.tsx
+- src/features/profile/hooks/useProfile.ts
+- src/features/profile/hooks/useEventHistory.ts
+
+Acceptance Criteria:
+- Profile header: avatar, name, email, phone, join date, edit button
+- Edit profile: update name, email, phone (with duplicate check)
+- Event history tab: list of past events with attendance badge
+- Empty state: "Anda belum mengikuti event apapun"
+
+
+------------------------------------------------------------------------
+P9-FE-005 | Feedback Form Page
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P5-BE-003
+Reference   : UIUX Spec v1.5 Section 5.8,
+              API Spec v1.6 Section 17
+
+Objective:
+Implementasi feedback form (token-based, no auth).
+
+Output:
+- src/app/(feedback)/feedback/[token]/page.tsx
+- src/features/feedback/components/FeedbackForm.tsx
+- src/features/feedback/components/SuccessState.tsx
+- src/features/feedback/components/AlreadySubmitted.tsx
+- src/features/feedback/hooks/useFeedback.ts
+
+Acceptance Criteria:
+- Token valid + present + belum submit → form (rating, comment, suggestion)
+- Star rating: 5 bintang, tap to select, opsional; minimal salah satu field (rating/comment/suggestion) harus diisi
+- Comment + suggestion: optional, max 2000 chars, character counter
+- Submit → success state
+- Already submitted → info state
+- Not attended → warning state
+- Invalid token → error state
+
+
+########################################################################
+PHASE 10 — FRONTEND: Admin Dashboard & Management
+########################################################################
+
+
+------------------------------------------------------------------------
+P10-FE-001 | Admin Dashboard Page
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P7-FE-001, P7-FE-002, P6-BE-005
+Reference   : UIUX Spec v1.5 Section 6.2,
+              API Spec v1.6 Section 19
+
+Objective:
+Implementasi admin dashboard analytics page.
+
+Output:
+- src/app/admin/page.tsx
+- src/features/admin/analytics/DashboardCards.tsx (summary cards)
+- src/features/admin/analytics/AnalyticsCharts.tsx (line chart, bar chart — recharts)
+- src/features/admin/analytics/RecentActivity.tsx (5 recent notifications)
+
+Acceptance Criteria:
+- Summary cards: upcoming events, completed events, total participants, revenue, attendance rate, feedback rating
+- Charts: registration trend (line), revenue trend (bar)
+- Recent activity feed
+- Responsive grid layout
+
+
+------------------------------------------------------------------------
+P10-FE-002 | Admin Event Management Pages
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : P10-FE-001, P3-BE-002, P3-BE-007, P3-BE-008
+Reference   : UIUX Spec v1.5 Section 6.3,
+              API Spec v1.6 Section 6
+
+Objective:
+Implementasi admin event CRUD pages.
+
+Output:
+- src/app/admin/events/page.tsx (event list)
+- src/app/admin/events/new/page.tsx (create event: blank/template/duplicate)
+- src/app/admin/events/[id]/page.tsx (event detail with tabs)
+- src/app/admin/events/[id]/edit/page.tsx (edit event)
+- src/features/admin/events/AdminEventList.tsx (table + filters + actions)
+- src/features/admin/events/AdminEventForm.tsx (tabbed form: basic, schedule, instructor, pricing, add-on)
+- src/features/admin/events/AdminEventDetail.tsx (tabs: overview, participants, payments, attendance, feedback)
+
+Acceptance Criteria:
+- Event list: table with status filter, search, actions per row (view, edit, duplicate, publish, complete, delete, share)
+- Create event: modal pilihan (blank/template/duplicate) → tabbed form (5 tabs)
+- Edit event: same form, pre-filled, respect status rules
+- Event detail: tabbed view (overview, participants, payments, attendance, feedback)
+- Publish: confirmation modal, validation (min 1 normal price)
+- Complete: confirmation modal
+- Delete: confirmation modal, draft only
+- Share: copy URL, QR code
+
+
+------------------------------------------------------------------------
+P10-FE-003 | Admin Template Management Pages
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P10-FE-001, P3-BE-006
+Reference   : UIUX Spec v1.5 Section 6.4,
+              API Spec v1.6 Section 7
+
+Objective:
+Implementasi admin template CRUD pages.
+
+Output:
+- src/app/admin/templates/page.tsx (list)
+- src/app/admin/templates/new/page.tsx (create)
+- src/app/admin/templates/[id]/edit/page.tsx (edit)
+- src/features/admin/templates/TemplateList.tsx
+- src/features/admin/templates/TemplateForm.tsx
+
+Acceptance Criteria:
+- List: table/card with actions (edit, delete)
+- Create/Edit form: name, activity_type, description, instructor (dropdown active only)
+- Note: "Template tidak menyimpan pricing/add-on"
+
+
+------------------------------------------------------------------------
+P10-FE-004 | Admin Instructor Management Pages
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P10-FE-001, P3-BE-004
+Reference   : UIUX Spec v1.5 Section 6.5,
+              API Spec v1.6 Section 8
+
+Objective:
+Implementasi admin instructor CRUD pages.
+
+Output:
+- src/app/admin/instructors/page.tsx (list)
+- src/app/admin/instructors/new/page.tsx (create)
+- src/app/admin/instructors/[id]/edit/page.tsx (edit)
+- src/features/admin/instructors/InstructorList.tsx
+- src/features/admin/instructors/InstructorForm.tsx
+
+Acceptance Criteria:
+- List: avatar, name, specializations, status, filter by status
+- Form: name, profile picture upload, bio, specializations (multi-select), contact, status toggle
+- Delete rule: disabled if instructor has active published event
+
+
+------------------------------------------------------------------------
+P10-FE-005 | Admin Specialization Management Page
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : S
+Dependency  : P10-FE-001, P3-BE-005
+Reference   : UIUX Spec v1.5 Section 6.6,
+              API Spec v1.6 Section 9
+
+Objective:
+Implementasi admin specialization page.
+
+Output:
+- src/app/admin/specializations/page.tsx
+- src/features/admin/specializations/SpecializationList.tsx
+- src/features/admin/specializations/SpecializationForm.tsx (inline or modal)
+
+Acceptance Criteria:
+- List: name, instructor count, actions (edit, delete)
+- Create/edit: name field (unique)
+- Delete confirmation jika sedang digunakan
+
+
+------------------------------------------------------------------------
+P10-FE-006 | Admin Discount Management Pages
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P10-FE-001, P3-BE-009
+Reference   : UIUX Spec v1.5 Section 6.10,
+              API Spec v1.6 Section 12
+
+Objective:
+Implementasi admin promo code CRUD pages.
+
+Output:
+- src/app/admin/discounts/page.tsx (list)
+- src/app/admin/discounts/new/page.tsx (create)
+- src/app/admin/discounts/[id]/edit/page.tsx (edit)
+- src/features/admin/discounts/PromoCodeList.tsx
+- src/features/admin/discounts/PromoCodeForm.tsx
+
+Acceptance Criteria:
+- List: code, type, value, quota/used, expiry, status, actions
+- Form: code (auto-uppercase), discount_type, discount_value, quota, expiry_date, status
+- Validation: percentage max 100, expiry future
+
+
+------------------------------------------------------------------------
+P10-FE-007 | Admin Participant & Payment Tabs
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : L
+Dependency  : P10-FE-002, P5-BE-001
+Reference   : UIUX Spec v1.5 Section 6.7-6.8,
+              API Spec v1.6 Section 15, 14.4, 14.5
+
+Objective:
+Implementasi participant dan payment tabs di event detail admin.
+
+Output:
+- src/features/admin/participants/ParticipantList.tsx
+- src/features/admin/participants/ParticipantExport.tsx
+- src/features/admin/payments/PaymentList.tsx
+- src/features/admin/payments/PaymentManualCheck.tsx
+
+Acceptance Criteria:
+- Participant tab: search, filter (payment/registration/attendance status), pagination, summary
+- Export: download CSV dan XLSX
+- Payment tab: list payments dari GET /admin/events/:event_id/payments (metode, status, deadline, paid_at), manual check button → trigger API check
+- Summary stats at top of list
+
+
+------------------------------------------------------------------------
+P10-FE-008 | Admin Attendance Tab
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : P10-FE-002, P5-BE-002
+Reference   : UIUX Spec v1.5 Section 6.9,
+              API Spec v1.6 Section 16
+
+Objective:
+Implementasi attendance tab di event detail admin.
+
+Output:
+- src/features/admin/attendance/AttendanceList.tsx
+- src/features/admin/attendance/AttendanceToggle.tsx
+
+Acceptance Criteria:
+- List: participant name, attendance status, checked_in_at
+- Toggle switch: not_checked ↔ present (optimistic update via TanStack Query)
+- Summary: present count / total
+
+
+------------------------------------------------------------------------
+P10-FE-009 | Admin Feedback Tab
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P10-FE-002, P5-BE-003
+Reference   : UIUX Spec v1.5 Section 6.12,
+              API Spec v1.6 Section 17
+
+Objective:
+Implementasi feedback tab di event detail admin.
+
+Output:
+- src/features/admin/feedback/AdminFeedbackList.tsx
+- src/features/admin/feedback/FeedbackSummary.tsx (average rating, total responses)
+
+Acceptance Criteria:
+- Summary: average rating (stars), total responses
+- List: participant name, rating (stars), comment, suggestion, submitted_at
+- Empty state jika belum ada feedback
+
+
+------------------------------------------------------------------------
+P10-FE-010 | Admin Notification UI
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P7-FE-001, P6-BE-002
+Reference   : UIUX Spec v1.5 Section 6.11 (notification bell),
+              API Spec v1.6 Section 18
+
+Objective:
+Implementasi notification bell dan dropdown di admin header.
+
+Output:
+- src/features/admin/notifications/NotificationBell.tsx (badge unread count)
+- src/features/admin/notifications/NotificationDropdown.tsx (list + mark all read)
+
+Acceptance Criteria:
+- Bell icon dengan badge unread count
+- Dropdown: list notifications newest first
+- Click notification → mark as read
+- "Tandai semua dibaca" button
+- Polling unread count setiap 30 detik
+
+
+------------------------------------------------------------------------
+P10-FE-011 | Admin Analytics Detail Page
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P10-FE-001, P6-BE-005
+Reference   : UIUX Spec v1.5 Section 6.13,
+              API Spec v1.6 Section 19
+
+Objective:
+Implementasi detailed analytics page.
+
+Output:
+- src/app/admin/analytics/page.tsx
+- Charts: registration trend, revenue trend, attendance trend, feedback distribution
+
+Acceptance Criteria:
+- More detailed charts than dashboard
+- Date range filter
+- Responsive chart layout
+
+
+########################################################################
+PHASE 11 — INTEGRATION & END-TO-END TESTING
+########################################################################
+
+
+------------------------------------------------------------------------
+P11-TEST-001 | Backend Unit & Integration Tests
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : XL
+Dependency  : Phase 2-6 complete
+Reference   : TAD v1.6 Section 17
+
+Objective:
+Menulis unit test dan integration test untuk backend.
+
+Output:
+- Unit tests per service (mocked dependencies)
+- Integration tests per controller (real database, Supertest)
+- Test coverage target: ≥ 80% untuk service layer
+
+Critical Test Cases:
+- Auth: semua login methods, token generation, blacklisting, account linking
+- Registration: capacity check, slot reservation, duplicate check, pricing calculation
+- Pricing: all discount stacking scenarios, edge cases (0 total, max discount)
+- Payment: webhook signature verification, idempotency, expiration
+- Background jobs: payment expiration, reminder, post-event
+
+Acceptance Criteria:
+- yarn test di apps/api → semua test passing
+- Coverage ≥ 80% untuk services
+- No flaky tests
+
+
+------------------------------------------------------------------------
+P11-TEST-002 | Frontend Component & E2E Tests
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : L
+Dependency  : Phase 7-10 complete
+Reference   : TAD v1.6 Section 17
+
+Objective:
+Testing frontend components dan optional E2E.
+
+Output:
+- Component tests: critical forms (auth, registration wizard, payment)
+- E2E tests (optional, Playwright): registration flow end-to-end
+
+Acceptance Criteria:
+- Registration wizard: step navigation, validation, price display
+- Auth forms: OTP input behavior, error states
+- Payment page: countdown, status polling
+
+
+########################################################################
+PHASE 12 — DEPLOYMENT & GO-LIVE
+########################################################################
+
+
+------------------------------------------------------------------------
+P12-INF-001 | Frontend Deployment (Vercel)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : Phase 8-10 complete
+Reference   : TAD v1.6 Section 4.12, Section 19
+
+Objective:
+Deploy frontend ke Vercel.
+
+Output:
+- Vercel project configured
+- Environment variables set
+- Custom domain (jika ada)
+- Preview deployments per branch
+
+Acceptance Criteria:
+- Production build berhasil di Vercel
+- Custom domain aktif (jika ada)
+- HTTPS otomatis
+- Preview deploy untuk setiap PR
+
+
+------------------------------------------------------------------------
+P12-INF-002 | Backend Deployment (Render)
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : M
+Dependency  : Phase 2-6 complete
+Reference   : TAD v1.6 Section 4.13, Section 19
+
+Objective:
+Deploy backend ke Render Free Tier.
+
+Output:
+- Render Web Service configured
+- Environment variables set
+- Database migration di production
+- Keep-alive setup (UptimeRobot / cron-job.org)
+
+Acceptance Criteria:
+- NestJS server berjalan di Render
+- GET /api/v1/health returns 200
+- Keep-alive mencegah cold start
+- Database migration berhasil di production
+- Prisma seed (admin user) di production
+
+
+------------------------------------------------------------------------
+P12-INF-003 | CI/CD Pipeline (GitHub Actions)
+------------------------------------------------------------------------
+
+Priority    : P1
+Effort      : M
+Dependency  : P12-INF-001, P12-INF-002
+Reference   : TAD v1.6 Section 19.4
+
+Objective:
+Setup GitHub Actions untuk CI/CD.
+
+Output:
+- .github/workflows/ci.yml (lint, type-check, test on PR)
+- .github/workflows/deploy.yml (auto-deploy on merge to main)
+
+Acceptance Criteria:
+- PR: lint + type-check + test harus pass sebelum merge
+- Merge to main: auto-deploy frontend (Vercel) + backend (Render)
+- Build failure → notification
+
+
+------------------------------------------------------------------------
+P12-INF-004 | Supabase Production Setup
+------------------------------------------------------------------------
+
+Priority    : P0
+Effort      : S
+Dependency  : P1-DB-002
+Reference   : TAD v1.6 Section 4.14, 4.11
+
+Objective:
+Setup Supabase project untuk production.
+
+Output:
+- Supabase project created
+- PostgreSQL connection string (PgBouncer)
+- Storage bucket untuk poster (public)
+- RLS disabled (access via API only, no direct client access)
+
+Acceptance Criteria:
+- Database accessible via PgBouncer URL
+- Storage bucket bisa upload/download
+- Connection pooling aktif
+
+
+========================================================================
+5. TASK SUMMARY
+========================================================================
+
+Total Tasks: 68
+
+By Phase:
+- Phase 0  (Foundation)       : 4 tasks
+- Phase 1  (Database)         : 3 tasks
+- Phase 2  (Auth)             : 7 tasks
+- Phase 3  (Core Backend)     : 10 tasks
+- Phase 4  (Reg/Price/Pay)    : 4 tasks
+- Phase 5  (Operations)       : 4 tasks
+- Phase 6  (Notif/Jobs/Stats) : 5 tasks
+- Phase 7  (FE Foundation)    : 5 tasks
+- Phase 8  (FE Public/Auth)   : 4 tasks
+- Phase 9  (FE Reg/Pay/Prof)  : 5 tasks
+- Phase 10 (FE Admin)         : 11 tasks
+- Phase 11 (Testing)          : 2 tasks
+- Phase 12 (Deployment)       : 4 tasks
+
+By Priority:
+- P0 (Critical MVP)  : 54 tasks
+- P1 (Important MVP)  : 14 tasks
+
+By Effort:
+- S  (Small)          : 5 tasks
+- M  (Medium)         : 36 tasks
+- L  (Large)          : 18 tasks
+- XL (Very Large)     : 9 tasks
+
+By Layer:
+- INF (Infrastructure) : 8 tasks
+- DB  (Database)       : 3 tasks
+- BE  (Backend)        : 30 tasks
+- FE  (Frontend)       : 25 tasks
+- TEST (Testing)       : 2 tasks
+
+
+========================================================================
+6. DEPENDENCY GRAPH (Critical Path)
+========================================================================
+
+P0-INF-001 (Monorepo)
+├── P0-INF-002 (Frontend) ──→ Phase 7 (FE Foundation) ──→ Phase 8-10 (FE Pages)
+├── P0-INF-003 (Backend) ──→ P1-DB-001 (Prisma) ──→ P1-DB-002 (Schema)
+│                                                         │
+│                                                         ├── P2-BE-001 (JWT Core)
+│                                                         │   ├── P2-BE-002 (Role Guard)
+│                                                         │   ├── P2-BE-003 (Google OAuth)
+│                                                         │   ├── P2-BE-004 (Email OTP)
+│                                                         │   ├── P2-BE-005 (WhatsApp OTP)
+│                                                         │   ├── P2-BE-006 (Auto Create)
+│                                                         │   └── P2-BE-007 (Admin Login)
+│                                                         │
+│                                                         ├── P3-BE-002 (Event CRUD)
+│                                                         │   ├── P3-BE-003 (Event Public)
+│                                                         │   ├── P3-BE-006 (Templates)
+│                                                         │   ├── P3-BE-007 (Pricing)
+│                                                         │   └── P3-BE-008 (Add-ons)
+│                                                         │
+│                                                         └── P3-BE-004 (Instructors)
+│                                                             └── P3-BE-005 (Specializations)
+│
+└── P0-INF-004 (Env Vars)
+
+P3-BE-007 + P3-BE-008 + P3-BE-009
+└── P4-BE-001 (Pricing Engine)
+    └── P4-BE-002 (Registration)
+        └── P4-BE-003 (Payment Midtrans)
+            ├── P4-BE-004 (Payment Expiry Job)
+            ├── P5-BE-001 (Participant Mgmt)
+            ├── P5-BE-002 (Attendance)
+            └── P5-BE-003 (Feedback)
+
+P6-BE-001 (Notification Service) ──→ P6-BE-002 (Admin Notif) + P6-BE-003 (Reminder) + P6-BE-004 (Post-Event)
+
+Frontend Critical Path:
+P7-FE-001 → P7-FE-002 → P8-FE-001 → P8-FE-002
+P7-FE-003 → P8-FE-003 → P9-FE-001 → P9-FE-002 → P9-FE-003
+P7-FE-001 → P10-FE-001 → P10-FE-002 → P10-FE-007/008/009
+
+
+========================================================================
+7. EXECUTION STRATEGY FOR AI
+========================================================================
+
+7.1 Parallel Execution Tracks
+
+Track backend dan frontend memiliki dependency yang independen, sehingga pengerjaan dapat bergantian antar track. Namun tetap SATU task per waktu (sesuai AI Development Context Guide Section 6.3 dan CLAUDE.md); tidak ada dua task yang dikerjakan sekaligus:
+
+Track A (Backend Core):
+Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
+
+Track B (Frontend):
+Phase 0 → Phase 7 → Phase 8 → Phase 9 → Phase 10
+
+Track A dan B bisa dikerjakan bergantian setelah Phase 0.
+Phase 11 (Testing) dan Phase 12 (Deployment) dilakukan setelah kedua track selesai.
+
+7.2 AI Prompt Template
+
+Untuk setiap task, berikan AI prompt dengan format:
+
+---
+Project: Ruanasa Space
+Task: [Task ID] — [Task Name]
+Phase: [Phase Number]
+
+References (BACA SEBELUM MULAI):
+- [Dokumen + section spesifik]
+
+Objective:
+[Copy dari task objective]
+
+Output Files:
+[List file yang harus dibuat/dimodifikasi]
+
+Implementation Detail:
+[Copy dari task implementation]
+
+Acceptance Criteria:
+[Copy dari acceptance criteria]
+
+Validation Checklist:
+[ ] Sesuai ERD schema
+[ ] Sesuai API contract
+[ ] Business rules terpenuhi
+[ ] Error handling lengkap
+[ ] Security requirements terpenuhi
+[ ] TypeScript strict — no any
+---
+
+7.3 Post-Task Verification
+
+Setelah menyelesaikan setiap task, AI harus:
+1. Jalankan lint (eslint) — no errors
+2. Jalankan type check (tsc --noEmit) — no errors
+3. Jalankan existing tests — semua passing
+4. Verifikasi acceptance criteria satu per satu
+5. Check validation checklist
+
+
+========================================================================
+8. DEFINITION OF DONE (Per Phase)
+========================================================================
+
+Sebuah phase dianggap selesai apabila:
+
+[ ] Semua task dalam phase memiliki status completed
+[ ] Semua code sudah type-checked (tsc --noEmit → 0 errors)
+[ ] Semua lint rules passed (eslint → 0 errors)
+[ ] Semua existing tests passed
+[ ] Acceptance criteria setiap task terverifikasi
+[ ] Validation checklist setiap task ter-check
+[ ] Tidak ada TypeScript `any` type
+[ ] Error handling tersedia untuk semua error cases di API Spec
+[ ] Security guards aktif di semua protected endpoints
+
+
+========================================================================
+9. NEXT DOCUMENT
+========================================================================
+
+AI Development Context Guide v1.3
+
+Dokumen yang berisi:
+- Detail prompt template per task type
+- Code examples dan patterns yang harus diikuti
+- Testing patterns dan examples
+- Common pitfalls dan cara menghindarinya
+- Debug checklist saat ada error

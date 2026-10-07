@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens — sumber: Stitch AI project "Serene Hearth" (designMd) + UIUX Spec v1.5 Section 3.
+ * Ini satu-satunya tempat nilai hex boleh ditulis. Component hanya memakai class Tailwind.
+ * Font diganti ke Jost atas keputusan pemilik produk (Stitch semula: Plus Jakarta Sans).
+ */
+@layer base {
+  :root {
+    /* Surface */
+    --background: #fafaf8; /* surface-page */
+    --foreground: #181d1b; /* on-surface */
+    --card: #ffffff; /* surface-card */
+    --card-foreground: #181d1b;
+    --muted: #ebefeb; /* surface-container */
+    --muted-foreground: #414944; /* on-surface-variant */
+    --accent: #f0f5f1; /* surface-container-low */
+    --accent-foreground: #1b4433;
+    --border: #c1c8c2; /* outline-variant */
+    --input: #c1c8c2;
+    --ring: #335c49;
+    --sidebar: #1b4433;
+    --sidebar-foreground: #edf2ee;
+
+    /* Brand */
+    --primary: #335c49; /* primary-container: warna tombol utama */
+    --primary-foreground: #ffffff;
+    --primary-hover: #264637;
+    --primary-dark: #1b4433;
+    --primary-light: #a6d2ba;
+    --primary-fixed: #bfedd4;
+    --secondary: #ecdecb; /* secondary-container */
+    --secondary-foreground: #1b4433;
+    --sand: #d8cab8;
+    --tertiary: #41594c;
+    --tertiary-foreground: #b3cfbe;
+
+    /* Neutral — diturunkan dari token surface/outline Stitch (skala 10 shade tidak diberikan) */
+    --neutral-50: #f0f5f1;
+    --neutral-100: #ebefeb;
+    --neutral-200: #dfe4e0;
+    --neutral-300: #c1c8c2;
+    --neutral-500: #717973;
+    --neutral-700: #414944;
+    --neutral-900: #181d1b;
+
+    /* Semantic */
+    --success-light: #ebf6ee;
+    --success-base: #2e7d47;
+    --success-dark: #1b4d2b;
+    --warning-light: #fef7e6;
+    --warning-base: #b7791f;
+    --warning-dark: #784f12;
+    --danger-light: #fdf2f2;
+    --danger-base: #c53030;
+    --danger-dark: #7b1d1d;
+    --info-light: #eff6fb;
+    --info-base: #2b6cb0;
+    --info-dark: #1a446f;
+
+    /* Modal scrim */
+    --scrim: rgba(28, 38, 34, 0.45);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background font-sans text-body-md text-foreground antialiased;
+  }
+}

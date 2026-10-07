@@ -1,0 +1,679 @@
+PRODUCT REQUIREMENT DOCUMENT (PRD)
+
+Ruanasa Space
+
+Version: 1.5 (Updated)
+Platform: Web-Based Responsive Application
+Target Device: Desktop Admin + Mobile Browser Participant
+Product Type: Wellness Event Management Platform
+
+------------------------------------------------------------------------
+
+1. PRODUCT OVERVIEW
+
+1.1 Product Name
+
+Ruanasa Space
+
+1.2 Product Description
+
+Ruanasa Space adalah platform berbasis web yang dirancang untuk mengelola aktivitas wellness community secara end-to-end, mulai dari pembuatan event, publikasi aktivitas, registrasi peserta, pembayaran, pengelolaan daftar peserta, pencatatan kehadiran, hingga feedback pasca-event.
+
+Pada tahap awal (MVP), Ruanasa Space difokuskan untuk mendukung operasional Yoga Class sebagai aktivitas utama komunitas.
+
+Platform ini menggantikan proses manual (spreadsheet, chat WhatsApp, pencatatan pembayaran terpisah) menjadi satu sistem terintegrasi.
+
+Ruanasa Space bukan marketplace aktivitas dan bukan social media community platform.
+
+1.3 Fokus Utama
+
+"Menjadi operating platform bagi Ruanasa Community untuk mengelola aktivitas wellness, peserta, transaksi, dan pengalaman event dalam satu sistem terintegrasi."
+
+------------------------------------------------------------------------
+
+2. PRODUCT VISION
+
+Membangun platform digital yang membantu Ruanasa Community menghadirkan pengalaman wellness yang lebih mudah, terorganisir, dan personal bagi setiap peserta melalui pengelolaan event yang seamless.
+
+------------------------------------------------------------------------
+
+3. PRODUCT MISSION
+
+Ruanasa Space bertujuan untuk:
+
+1. Mendigitalisasi proses operasional aktivitas wellness.
+2. Memberikan pengalaman registrasi yang mudah dan nyaman bagi peserta.
+3. Mengotomatisasi proses pembayaran dan konfirmasi peserta.
+4. Membantu pengelola mengelola data peserta dan aktivitas secara lebih efektif.
+5. Membangun fondasi digital untuk pengembangan wellness community di masa depan.
+
+------------------------------------------------------------------------
+
+4. PRODUCT POSITIONING
+
+Ruanasa Space adalah platform digital untuk mengelola wellness experience yang menghubungkan aktivitas, peserta, dan operasional komunitas dalam satu platform.
+
+Positioning statement:
+
+"A digital space to manage wellness experiences, create meaningful moments, and grow a connected community."
+
+------------------------------------------------------------------------
+
+5. PRODUCT SCOPE (MVP)
+
+Ruanasa Space MVP berfokus pada pengelolaan operasional event wellness, khususnya Yoga Class.
+
+5.1 Participant Experience
+
+Peserta dapat:
+
+- Login tanpa password (Google Login, Email OTP, WhatsApp OTP) atau continue without login.
+- Continue without login: peserta mengisi data (nama, nomor telepon, email). Sistem mengecek apakah nomor telepon atau email sudah terdaftar. Jika belum, akun baru otomatis dibuat. Jika sudah terdaftar, peserta diminta untuk login menggunakan metode yang sesuai.
+- Melihat event yang tersedia dan detail event (termasuk informasi instruktur, harga, kapasitas tersisa, dan add-on).
+- Melakukan registrasi event, termasuk registrasi multi-participant (>1 pax). Peserta tambahan hanya wajib mengisi nama.
+- Memilih add-on yang tersedia pada event (contoh: yoga mat rental) dan mengatur quantity.
+- Mendapatkan early bird discount otomatis jika registrasi dalam periode promo.
+- Mendapatkan bundle discount otomatis berdasarkan jumlah pax (contoh: 2 pax = 10%, 3 pax = 15%).
+- Menggunakan promo code untuk mendapatkan diskon tambahan.
+- Melihat ringkasan order (breakdown harga, discount, add-on, total payment) sebelum pembayaran.
+- Melakukan pembayaran melalui QRIS atau bank transfer via payment gateway.
+- Mendapatkan konfirmasi registrasi melalui WhatsApp setelah pembayaran berhasil.
+- Mendapatkan event reminder H-1 melalui WhatsApp (detail event, guidebook, rundown, barang bawaan, lokasi).
+- Mendapatkan post-event notification melalui WhatsApp (ucapan terima kasih, feedback form link, documentation link).
+- Melihat status registrasi dan pembayaran.
+- Mengisi feedback (rating, comment, suggestion) setelah event selesai.
+- Melihat profil, riwayat event, dan attendance history.
+
+Catatan: Semua peserta yang melakukan registrasi akan memiliki akun, baik melalui login eksplisit maupun melalui continue without login (akun otomatis dibuat). Tidak ada konsep guest tanpa akun.
+
+5.2 Admin Experience
+
+Admin dapat:
+
+- Login ke dashboard admin menggunakan email dan password.
+- Mengelola data instruktur (nama, foto, bio, specialization, kontak, status active/inactive).
+- Mengelola specialization instruktur (contoh: Vinyasa Yoga, Hatha Yoga, Meditation, Breathwork).
+- Membuat event baru, menggunakan template, atau duplicate dari event sebelumnya.
+- Mengatur detail event (nama, tipe aktivitas, tanggal, waktu, lokasi, deskripsi, poster, instruktur, kapasitas).
+- Mengatur pricing per event: harga normal, early bird price (dengan periode), dan bundle discount rules (berdasarkan jumlah pax).
+- Mengelola add-on per event (nama, deskripsi, harga, available quantity, max purchase quantity, status).
+- Mengelola promo code (kode, tipe discount, nilai, quota, expiry date, status).
+- Mempublikasikan event (Draft → Published) dan membagikan melalui public URL dan QR Code.
+- Menandai event sebagai selesai (Published → Completed).
+- Melihat dan mengelola daftar peserta per event (search, filter, update attendance).
+- Memantau dan mengelola status pembayaran.
+- Mencatat kehadiran peserta (Not Checked → Present).
+- Menerima in-app notification (new registration, payment success, event almost full).
+- Mengirim follow-up pasca-event (feedback form, documentation link) melalui WhatsApp.
+- Export data peserta per event ke Excel/CSV.
+- Melihat dashboard analytics (event summary, registration summary, payment/revenue summary, attendance rate, feedback summary).
+
+------------------------------------------------------------------------
+
+6. USER ROLE
+
+6.1 Admin / Ruanasa Team
+
+Pengguna yang bertanggung jawab mengelola seluruh operasional event wellness. Mengakses platform melalui dashboard admin di desktop browser. Login menggunakan email dan password.
+
+6.2 Participant
+
+Pengguna yang mengikuti aktivitas wellness. Mengakses platform melalui mobile atau desktop browser. Login menggunakan passwordless authentication atau continue without login (akun otomatis dibuat).
+
+6.3 User vs Participant
+
+User dan Participant adalah entitas yang berbeda:
+- User: orang yang memiliki akun dan melakukan transaksi (buyer/pembeli). Setiap orang yang mendaftar event pasti memiliki akun user.
+- Participant: orang yang hadir dalam event. Satu user bisa mendaftarkan beberapa participant.
+- Contoh: Sarah (user/buyer) mendaftar 3 pax — Sarah adalah user sekaligus participant pertama, dua peserta lainnya adalah participant tambahan yang hanya memiliki data nama.
+
+6.4 Identifikasi Utama
+
+Nomor telepon adalah identifikasi utama user di Ruanasa Space. Sistem menggunakan nomor telepon sebagai primary lookup saat melakukan pengecekan akun existing, diikuti oleh email sebagai secondary check.
+
+------------------------------------------------------------------------
+
+7. PLATFORM STRUCTURE & MAIN MODULE
+
+7.1 Platform Structure
+
+Ruanasa Space memiliki dua sisi utama:
+
+Participant Side — Digunakan oleh peserta untuk melihat event, registrasi, pembayaran, melihat informasi event, mengisi feedback, dan melihat riwayat.
+
+Admin Side — Digunakan oleh pengelola untuk mengelola event, instruktur, peserta, pembayaran, pricing, attendance, discount, add-on, feedback, notification, dan melihat laporan.
+
+7.2 Main Module Structure
+
+Ruanasa Space terdiri dari modul berikut:
+
+1. Authentication Management (passwordless untuk participant, email+password untuk admin)
+2. User Management (termasuk role-based access control: admin / participant, auto-create account)
+3. Event Management (termasuk template dan duplicate)
+4. Instructor Management (termasuk specialization)
+5. Registration Management (termasuk multi-pax)
+6. Capacity & Slot Management
+7. Add-on Management
+8. Pricing Management (normal price, early bird, bundle discount)
+9. Discount Code Management (promo code)
+10. Payment Management (QRIS, bank transfer, payment expiration)
+11. Participant Management (event-based)
+12. Attendance Management
+13. Feedback Management
+14. WhatsApp Notification (registration confirmation, event reminder H-1, post-event)
+15. Admin Notification (in-app)
+16. Member Profile & Attendance History
+17. Data Export (Excel/CSV)
+18. Dashboard Analytics
+
+------------------------------------------------------------------------
+
+8. AUTHENTICATION MANAGEMENT
+
+8.1 Participant Authentication
+
+Ruanasa Space menggunakan passwordless authentication untuk participant.
+
+Metode autentikasi:
+- Google Login (OAuth 2.0).
+- Email OTP (6 digit, berlaku 5 menit, maks 5 percobaan salah, rate limit 3 request per 15 menit).
+- WhatsApp OTP (6 digit, berlaku 5 menit, maks 5 percobaan salah, rate limit 3 request per 15 menit).
+- Continue Without Login (akun otomatis dibuat berdasarkan nomor telepon).
+
+8.2 Continue Without Login — Auto Account Creation
+
+Saat peserta memilih continue without login:
+1. Peserta mengisi data: Nama, Nomor Telepon (wajib, primary identifier), Email (wajib).
+2. Sistem mengecek apakah nomor telepon sudah terdaftar di database.
+3. Jika nomor telepon belum terdaftar: sistem mengecek email.
+4. Jika email juga belum terdaftar: akun baru otomatis dibuat (auth_provider = 'auto_created'), peserta langsung lanjut ke registrasi.
+5. Jika nomor telepon ATAU email sudah terdaftar: peserta diminta untuk login menggunakan metode yang sesuai (Google, Email OTP, atau WhatsApp OTP). Pesan: "Nomor telepon/email ini sudah terdaftar, silakan login untuk melanjutkan."
+
+Dengan mekanisme ini, semua peserta yang pernah mendaftar event akan memiliki akun dan dapat melihat riwayat event serta attendance history mereka.
+
+8.3 Admin Authentication
+
+Admin login ke dashboard menggunakan email dan password.
+
+8.4 User Data
+
+- Name
+- Email (unique)
+- Phone Number (unique, primary identifier)
+- Role (admin / participant)
+
+8.5 Session
+
+Session berlaku selama 7 hari (sliding expiration). Jika session expired, user perlu login ulang. User yang dibuat melalui auto-create langsung mendapatkan session aktif.
+
+------------------------------------------------------------------------
+
+9. EVENT MANAGEMENT
+
+9.1 Event Data
+
+Admin membuat event dengan informasi berikut:
+- Event Name (maks 150 karakter)
+- Activity Type (contoh: Yoga, Pilates, Meditation)
+- Date
+- Start Time dan End Time
+- Location (maks 500 karakter)
+- Description (maks 5000 karakter)
+- Poster (JPG/JPEG/PNG/WebP, maks 5 MB, rekomendasi 1080x1350 px)
+- Instructor (dipilih dari daftar instruktur aktif)
+- Capacity (jumlah maksimum participant)
+
+Catatan: Date, Start Time, dan End Time wajib terisi sebelum event dipublikasikan. Event Draft hasil duplicate boleh memiliki ketiga field ini kosong sampai admin mengisinya.
+
+9.2 Event Status
+
+- Draft: event dibuat tapi belum dipublikasikan, tidak terlihat oleh participant.
+- Published: event aktif, registrasi terbuka, dapat diakses participant.
+- Completed: event selesai, registrasi tertutup, feedback collection aktif.
+
+Transisi status yang diperbolehkan:
+- Draft → Published
+- Published → Completed
+- Draft → Delete (hanya event berstatus Draft yang bisa dihapus)
+
+9.3 Event Distribution
+
+Event yang berstatus Published dapat dibagikan melalui:
+- Public URL
+- QR Code (generated otomatis dari public URL)
+
+9.4 Event Template
+
+Admin dapat membuat template event yang menyimpan konfigurasi dasar: activity type, description, dan instructor. Saat membuat event baru, admin memilih template dan data auto-fill dari template, lalu admin melengkapi detail lainnya (tanggal, waktu, lokasi, kapasitas, pricing, add-on).
+
+Catatan: Template pada MVP tidak menyimpan add-on dan pricing. Admin mengatur keduanya secara manual setelah memilih template.
+
+9.5 Duplicate Event
+
+Admin dapat membuat event baru berdasarkan event sebelumnya. Semua data ter-copy (termasuk add-on dan pricing configuration), kecuali tanggal/waktu (wajib diisi ulang sebelum publish), registrasi, participant, payment, dan attendance (reset kosong). Event hasil duplicate dimulai dari status Draft.
+
+------------------------------------------------------------------------
+
+10. INSTRUCTOR MANAGEMENT
+
+10.1 Instructor Data
+
+- Instructor Name (maks 100 karakter)
+- Profile Picture (optional)
+- Bio (optional, maks 2000 karakter)
+- Specialization (satu atau lebih, contoh: Vinyasa Yoga, Hatha Yoga, Meditation, Breathwork)
+- Contact Information (optional, maks 500 karakter)
+- Status (Active / Inactive)
+
+10.2 Instructor Rules
+
+- Hanya instructor berstatus Active yang tampil sebagai pilihan saat membuat event.
+- Instructor yang berstatus Inactive tetap muncul di event lama yang sudah dibuat.
+- Instructor tidak dapat dihapus jika masih terhubung dengan event berstatus Published.
+
+------------------------------------------------------------------------
+
+11. CAPACITY & SLOT MANAGEMENT
+
+Kapasitas dihitung berdasarkan jumlah participant (bukan per booking/registrasi).
+
+Contoh: Event capacity 30 participant. Sarah mendaftar 3 pax → slot terpakai: 3, sisa: 27. Budi mendaftar 2 pax → slot terpakai: 5, sisa: 25.
+
+Rules:
+- Jika sisa slot = 0: registrasi otomatis disabled, tombol registrasi tidak muncul.
+- Jika sisa slot kurang dari jumlah pax yang dipilih: registrasi ditolak.
+- Saat payment expired dan registrasi dibatalkan: slot otomatis dikembalikan.
+- Slot dihitung real-time berdasarkan registrasi berstatus Pending + Confirmed.
+- Jika dua peserta secara bersamaan mencoba slot terakhir, peserta yang lebih dulu submit mendapatkan slot, peserta lainnya mendapat pesan "slot sudah penuh".
+
+------------------------------------------------------------------------
+
+12. REGISTRATION MANAGEMENT
+
+12.1 Registration Flow
+
+Open Event → Login / Continue Without Login (auto-create account jika baru) → Fill Participant Data → Select Pax → Add Participant Name (jika >1 pax) → Select Add-on → Apply Discount → Review Order Summary → Payment → Payment Verified → Registration Confirmed → WhatsApp Confirmation.
+
+12.2 Registration Behavior
+
+- Jika user sudah login: data (nama, email, phone) otomatis terisi dari profil.
+- Jika continue without login: user mengisi data manual, sistem cek nomor telepon dan email, jika baru maka akun otomatis dibuat, jika sudah ada maka diminta login.
+
+12.3 Multi-Participant Registration
+
+- Satu registrasi dapat mendaftarkan lebih dari 1 participant.
+- Participant pertama (buyer) mengisi data lengkap: Name, Email, Phone Number.
+- Participant tambahan hanya wajib mengisi Name.
+- Contoh: Sarah mendaftar 3 pax — Sarah mengisi data lengkap, lalu menambahkan nama peserta kedua dan ketiga.
+
+12.4 Registration Rules
+
+- User tidak dapat mendaftar pada event yang sama lebih dari satu kali (registrasi yang expired tidak dihitung; user boleh mendaftar ulang).
+- Registrasi tidak dapat dilakukan jika event sudah penuh atau berstatus Draft/Completed.
+
+------------------------------------------------------------------------
+
+13. ADD-ON MANAGEMENT
+
+13.1 Add-on Data
+
+Admin membuat add-on per event dengan informasi:
+- Add-on Name (maks 100 karakter)
+- Description (optional, maks 500 karakter)
+- Price (dalam Rupiah)
+- Available Quantity
+- Maximum Purchase Quantity per registrasi
+- Status (Active / Inactive)
+
+13.2 Add-on Flow
+
+Participant memilih add-on saat registrasi dan mengatur quantity. Sistem menghitung subtotal add-on dan menambahkannya ke total pembayaran secara otomatis. Available quantity berkurang saat registrasi dibuat (bukan saat payment confirmed). Jika registrasi expired, available quantity dikembalikan. Jika available quantity = 0, add-on tidak ditampilkan.
+
+Contoh: Yoga Mat Rental — Price: Rp20.000, Quantity: 2, Subtotal: Rp40.000.
+
+------------------------------------------------------------------------
+
+14. PRICING MANAGEMENT
+
+14.1 Normal Price & Early Bird
+
+Setiap event memiliki harga yang dikelola terpisah dari data event:
+- Normal Price: harga standar yang berlaku secara default.
+- Early Bird Price: harga khusus yang berlaku dalam periode tertentu (start date - end date).
+
+Sistem mengecek tanggal registrasi terhadap periode early bird. Jika dalam periode, harga early bird otomatis diterapkan. Jika di luar periode, harga normal yang berlaku. Tidak perlu input dari peserta.
+
+14.2 Bundle Discount
+
+Admin dapat mengatur aturan discount berdasarkan jumlah pax yang didaftarkan per registrasi.
+
+Contoh:
+- 2 pax = diskon 10%
+- 3 pax = diskon 15%
+
+Sistem mengecek jumlah pax saat registrasi. Jika memenuhi minimum quantity, discount otomatis diterapkan. Tidak perlu input dari peserta.
+
+14.3 Discount Priority & Stacking
+
+Urutan penerapan discount:
+1. Harga dasar ditentukan dari pricing (Normal atau Early Bird).
+2. Bundle discount diterapkan jika memenuhi syarat minimum pax.
+3. Promo code diterapkan jika valid (dihitung setelah bundle discount, tidak termasuk add-on).
+
+Semua discount dapat di-stack (diterapkan bersamaan). Total payment tidak boleh kurang dari Rp0.
+
+------------------------------------------------------------------------
+
+15. DISCOUNT CODE MANAGEMENT
+
+15.1 Promo Code Data
+
+Admin membuat promo code dengan informasi:
+- Code (unique, alphanumeric, maks 20 karakter)
+- Discount Type (Percentage / Fixed Amount)
+- Discount Value
+- Quota (jumlah penggunaan yang diperbolehkan)
+- Expiry Date
+- Status (Active / Inactive)
+
+15.2 Promo Code Rules
+
+- Peserta memasukkan kode promo saat registrasi.
+- Sistem memvalidasi: kode valid, belum expired, quota belum habis, status Active.
+- Jika valid: discount diterapkan ke subtotal.
+- Satu registrasi hanya dapat menggunakan satu promo code.
+- Quota berkurang saat registrasi dibuat (bukan saat payment confirmed). Jika registrasi expired, quota dikembalikan.
+
+------------------------------------------------------------------------
+
+16. PAYMENT MANAGEMENT
+
+16.1 Payment Method
+
+- QRIS
+- Bank Transfer
+
+Pembayaran diproses melalui payment gateway.
+
+16.2 Payment Flow
+
+Registration Created → Generate Transaction → Participant Select Payment Method → Payment Process → Payment Gateway Callback → Update Payment Status → Update Registration Status → Send WhatsApp Confirmation. Participant dapat mengganti metode pembayaran selama pembayaran masih pending.
+
+16.3 Payment Status
+
+- Pending Payment: menunggu pembayaran dari peserta.
+- Paid: pembayaran berhasil diverifikasi oleh payment gateway.
+- Expired: batas waktu pembayaran terlewati.
+
+16.4 Registration Status
+
+- Pending: registrasi dibuat, menunggu pembayaran.
+- Confirmed: pembayaran berhasil, registrasi dikonfirmasi otomatis.
+- Expired: pembayaran tidak diselesaikan dalam batas waktu.
+
+16.5 Payment Expiration
+
+- Payment memiliki batas waktu 60 menit sejak registrasi dibuat.
+- Jika pembayaran tidak diselesaikan dalam batas waktu:
+  - Registration otomatis dibatalkan (status Expired).
+  - Slot dikembalikan ke kapasitas event.
+  - Add-on quantity dikembalikan.
+  - Promo code quota dikembalikan (jika digunakan).
+  - Peserta boleh mendaftar ulang pada event yang sama.
+
+16.6 Order Summary
+
+Sebelum pembayaran, peserta melihat ringkasan order yang mencakup:
+- Harga per pax (normal atau early bird).
+- Jumlah pax dan subtotal.
+- Bundle discount (jika berlaku).
+- Add-on yang dipilih dan subtotalnya.
+- Promo code discount (jika berlaku).
+- Total payment yang harus dibayar.
+
+------------------------------------------------------------------------
+
+17. PARTICIPANT MANAGEMENT
+
+Participant list bersifat event-based (bukan global CRM).
+
+17.1 Participant Data per Event
+
+Admin melihat participant list per event dengan data:
+- Participant Name
+- Booking Owner (nama buyer)
+- Email (dari registrasi)
+- Phone Number (dari registrasi)
+- Payment Status
+- Registration Status
+- Attendance Status
+
+17.2 Admin Capability
+
+- Search participant berdasarkan nama, email, atau phone number.
+- Filter participant berdasarkan payment status, registration status, atau attendance status.
+- Export participant list ke Excel/CSV.
+- Update attendance status.
+
+------------------------------------------------------------------------
+
+18. ATTENDANCE MANAGEMENT
+
+18.1 Attendance Status
+
+- Not Checked: default, belum dicek kehadirannya.
+- Present: hadir pada event, ditandai oleh admin.
+
+18.2 Attendance Flow
+
+Event Day → Admin Open Participant List → Search Participant → Mark Attendance (toggle Not Checked → Present).
+
+18.3 Attendance Rules
+
+- Attendance hanya dapat ditandai untuk participant yang registration status-nya Confirmed.
+- Satu participant hanya memiliki satu attendance record per event.
+
+------------------------------------------------------------------------
+
+19. NOTIFICATION MANAGEMENT
+
+19.1 WhatsApp Notification (Participant)
+
+Registration Confirmation
+- Trigger: payment berhasil (status berubah ke Paid).
+- Penerima: buyer.
+- Informasi: detail event (nama, tanggal, waktu, lokasi), jumlah participant, status registrasi (Confirmed), link WhatsApp Community Group.
+
+Event Reminder H-1
+- Trigger: 1 hari sebelum event (otomatis).
+- Penerima: semua buyer yang registrasinya Confirmed.
+- Informasi: detail event, guidebook, rundown, barang bawaan, informasi lokasi.
+
+Post Event Notification
+- Trigger: otomatis saat event status berubah ke Completed (asinkron). Job harian hanya sebagai catch-up. Admin juga dapat trigger manual.
+- Penerima: semua buyer yang registrasinya Confirmed.
+- Informasi: ucapan terima kasih, satu pesan per buyer berisi feedback form link untuk setiap participant yang hadir, documentation link.
+
+19.2 Admin Notification (In-App)
+
+Admin menerima notifikasi di dashboard saat:
+- New Registration masuk (status Pending).
+- Payment Success diterima.
+- Event Almost Full (kapasitas tersisa 10% atau kurang).
+
+19.3 Notification Failure
+
+Jika WhatsApp notification gagal terkirim, status dicatat sebagai "failed". Tidak ada auto-retry di MVP. Admin dapat melihat notification status di dashboard.
+
+------------------------------------------------------------------------
+
+20. FEEDBACK MANAGEMENT
+
+20.1 Feedback Flow
+
+Event status berubah ke Completed → Kirim feedback link via WhatsApp → Participant membuka link → Submit feedback form → Data tersimpan.
+
+20.2 Feedback Data
+
+- Rating (skala 1-5, opsional; minimal salah satu dari rating/comment/suggestion harus diisi)
+- Comment (optional, maks 2000 karakter)
+- Suggestion (optional, maks 2000 karakter)
+
+20.3 Feedback Rules
+
+- Feedback hanya dapat diisi oleh participant yang attendance status-nya Present.
+- Satu participant hanya dapat mengisi feedback satu kali per event.
+- Feedback form dapat diakses tanpa login (menggunakan unique link per participant).
+- Feedback tidak dapat diedit setelah disubmit.
+
+------------------------------------------------------------------------
+
+21. MEMBER PROFILE & ATTENDANCE HISTORY
+
+21.1 Profile Data
+
+Setiap user memiliki profil yang menampilkan:
+- Name
+- Email
+- Phone Number
+- Join Date (tanggal akun dibuat)
+
+Catatan: Semua peserta memiliki akun (termasuk yang mendaftar melalui continue without login), sehingga semua peserta memiliki akses ke profil dan riwayat.
+
+21.2 Event History & Attendance History
+
+User dapat melihat daftar event yang pernah diikuti beserta attendance status per event. Data diambil dari relasi: User → Registrations → Participants → Attendance.
+
+------------------------------------------------------------------------
+
+22. DATA EXPORT
+
+Admin dapat export data peserta per event ke format Excel (.xlsx) atau CSV (.csv).
+
+Data yang dapat diexport:
+- Participant Name
+- Booking Owner
+- Email
+- Phone Number
+- Payment Status
+- Registration Status
+- Attendance Status
+- Add-on yang dibeli
+- Total Payment
+
+------------------------------------------------------------------------
+
+23. DASHBOARD ANALYTICS
+
+Admin dapat melihat dashboard analytics dengan data berikut:
+
+23.1 Event Summary
+- Total event (semua status).
+- Upcoming event (status Published, tanggal belum lewat).
+- Completed event (status Completed).
+
+23.2 Registration Summary
+- Total participant terdaftar (per event dan keseluruhan).
+- Confirmed participant.
+- Pending participant.
+
+23.3 Payment Summary
+- Total revenue (jumlah pembayaran berstatus Paid).
+- Total paid transaction.
+- Outstanding payment (transaksi berstatus Pending Payment).
+
+23.4 Attendance Summary
+- Attendance rate per event (Present / Confirmed x 100%).
+
+23.5 Feedback Summary
+- Average rating per event.
+- Total feedback received per event.
+
+------------------------------------------------------------------------
+
+24. DATABASE RELATIONSHIP OVERVIEW
+
+24.1 Core Relationship
+
+User → Registration (1:N)
+Event → Registration (1:N)
+Registration → Participant (1:N)
+Registration → Payment (1:1)
+Participant → Attendance (1:1 per event)
+Participant → Feedback (1:1 per event)
+
+24.2 Supporting Relationship
+
+Instructor → Event (1:N)
+Instructor ↔ Specialization (N:M via mapping table)
+Event Template → Event (1:N)
+Event → Event Prices (1:N — normal dan early bird)
+Event → Event Pricing Rules (1:N — bundle discount)
+Event → Add-on (1:N)
+Registration → Registration Add-on (1:N)
+Registration → Discount Code (N:1)
+
+------------------------------------------------------------------------
+
+25. PRODUCT SCOPE LIMITATION (MVP)
+
+Fitur berikut belum termasuk dalam MVP:
+
+- Mobile application native.
+- Recurring event/class automation.
+- Community feed.
+- Chat community.
+- Membership subscription.
+- Loyalty point.
+- QR attendance (scan-based).
+- Multi-location management.
+- Multi-community management.
+- Global participant CRM.
+- Cancellation dan refund flow.
+- Notification auto-retry.
+
+------------------------------------------------------------------------
+
+26. FUTURE PRODUCT EXPANSION
+
+Ruanasa Space akan dikembangkan sebagai wellness experience management platform yang dapat mendukung berbagai aktivitas wellness lainnya: Yoga, Pilates, Meditation, Breathwork, Fitness Class, Wellness Workshop, dan Community Gathering.
+
+------------------------------------------------------------------------
+
+27. CORE PRODUCT PRINCIPLE
+
+Simple Registration — Peserta dapat bergabung dengan proses registrasi yang cepat dan mudah. Peserta yang belum memiliki akun otomatis dibuatkan saat continue without login, sehingga semua peserta memiliki riwayat.
+
+Seamless Payment — Pembayaran dilakukan secara digital (QRIS/bank transfer) dengan verifikasi otomatis, expiration handling, dan discount stacking (early bird + bundle + promo code).
+
+Organized Event Management — Admin dapat mengelola seluruh aktivitas, instruktur, pricing, add-on, discount, peserta, attendance, dan feedback dalam satu sistem, dengan dukungan template dan duplicate event.
+
+Meaningful Experience — Setiap event memberikan pengalaman yang terorganisir bagi peserta, dari registrasi hingga follow-up pasca-event, termasuk reminder H-1, feedback collection, dan documentation sharing.
+
+------------------------------------------------------------------------
+
+28. DEVELOPMENT GOAL (MVP)
+
+Target MVP Ruanasa Space:
+
+1. Admin dapat membuat dan mengelola event wellness (termasuk template dan duplicate).
+2. Admin dapat mengelola instruktur dan specialization.
+3. Admin dapat mengatur pricing per event (normal price, early bird, bundle discount).
+4. Admin dapat mengelola add-on dan promo code per event.
+5. Participant dapat login tanpa password (Google Login, Email OTP, WhatsApp OTP).
+6. Participant dapat continue without login — sistem otomatis membuat akun baru setelah validasi nomor telepon dan email.
+7. Sistem mengecek duplikasi nomor telepon (primary) dan email (secondary) saat auto-create account. Jika sudah terdaftar, peserta diminta login.
+8. Participant dapat melakukan multi-pax registration dan menambahkan data peserta tambahan.
+9. Participant dapat memilih add-on dan menggunakan promo code saat registrasi.
+10. Participant mendapatkan early bird dan bundle discount secara otomatis.
+11. Participant dapat melihat order summary sebelum pembayaran.
+12. Participant dapat melakukan pembayaran melalui QRIS atau bank transfer.
+13. Payment dapat diverifikasi otomatis melalui payment gateway callback.
+14. Payment expiration otomatis membatalkan registrasi dan mengembalikan slot, add-on quantity, dan promo code quota.
+15. Admin dapat melihat dan mengelola participant list per event (search, filter, export Excel/CSV).
+16. Admin dapat mencatat attendance peserta.
+17. Sistem mengirim WhatsApp notification (registration confirmation, event reminder H-1, post-event follow-up).
+18. Admin menerima in-app notification (new registration, payment success, event almost full).
+19. Participant dapat mengisi feedback setelah event selesai.
+20. Semua user memiliki profil dengan riwayat event dan attendance history.
+21. Admin dapat melihat dashboard analytics (event, registration, payment, attendance, feedback summary).
