@@ -8,14 +8,23 @@ import {
 
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/database/prisma.service';
+import { TokenService } from '../../src/modules/auth/token.service';
 import { UsersRepository } from '../../src/modules/users/users.repository';
 import { setupApp } from '../../src/setup-app';
 import { FakeUsersRepository } from './fake-users.repository';
+
+export type AuthHeader = { Authorization: string };
 
 export interface TestApp {
   app: NestExpressApplication;
   module: TestingModule;
   users: FakeUsersRepository;
+  /** Membuat user admin di repository palsu dan mengembalikan header Bearer-nya. */
+  asAdmin: () => AuthHeader;
+  /** Membuat user participant di repository palsu dan mengembalikan header Bearer-nya. */
+  asParticipant: (
+    overrides?: Parameters<FakeUsersRepository['add']>[0],
+  ) => AuthHeader;
 }
 
 export interface TestAppOptions {
@@ -30,7 +39,7 @@ export interface TestAppOptions {
  * PrismaService diganti stub dan UsersRepository diganti FakeUsersRepository.
  *
  * @param options - Controller probe dan override tambahan.
- * @returns App yang sudah diinisialisasi, module, dan repository user palsu.
+ * @returns App yang sudah diinisialisasi, module, repository user palsu, dan helper autentikasi.
  */
 export async function createTestApp(
   options: TestAppOptions = {},
@@ -54,5 +63,24 @@ export async function createTestApp(
   const app = module.createNestApplication<NestExpressApplication>();
   setupApp(app);
   await app.init();
-  return { app, module, users };
+
+  const tokens = module.get(TokenService);
+  const headerFor = (
+    id: string,
+    role: 'admin' | 'participant',
+  ): AuthHeader => ({
+    Authorization: `Bearer ${tokens.signAccessToken({ id, role }).token}`,
+  });
+
+  return {
+    app,
+    module,
+    users,
+    asAdmin: () => headerFor(users.add({ role: 'admin' }).id, 'admin'),
+    asParticipant: (overrides = {}) =>
+      headerFor(
+        users.add({ role: 'participant', ...overrides }).id,
+        'participant',
+      ),
+  };
 }

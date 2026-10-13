@@ -13,7 +13,7 @@ Terakhir diperbarui: 2026-10-07
 | Posisi | Phase 0 dan 1 selesai. Phase 2: kode selesai, 4 dari 7 task terbukti penuh dan 3 menunggu uji integrasi eksternal (Google, Resend, Fonnte). Berikutnya: Phase 3 (Core Backend), tidak bergantung pada ketiganya. |
 | Task | **10 selesai** Â· **4 sebagian** (menunggu kredensial atau uji runtime) Â· **54 belum** dari 68 |
 | Repo | https://github.com/ikhsanpambayun/ruanasa-space |
-| Git | `main` berisi Phase 0â€“1. Branch `feature/auth-authentication` (Phase 2) sudah di-push; **Pull Request belum dibuat/digabung** |
+| Git | `main` memuat Phase 0–2 (PR #1 sudah di-merge 2026-10-13). Phase 3 dikerjakan di branch `feature/core-master-data` |
 | Tes (API) | 113 unit + 70 e2e lulus; lint, typecheck, format bersih. Tes frontend belum ada (Phase 11) |
 | Database | Supabase, 2 migrasi terapkan, seed terisi (admin + data contoh) |
 
@@ -103,7 +103,7 @@ Legenda: `[ ]` belum Â· `[~]` sebagian (kode dan tes selesai, tetapi ada accep
 - [x] `yarn install --immutable` lulus
 - [x] `yarn lint`, `yarn typecheck`, `yarn format:check` bersih
 - [x] Migrasi dan seed berhasil di database Supabase baru
-- [~] `yarn build`: build API (2026-10-07) dan web (2026-10-06) masing-masing lulus; `yarn build` dari root tidak dijalankan ulang karena server dev sedang berjalan (file engine Prisma terkunci dan folder `.next` sedang dipakai). Jalankan ulang setelah server dev dihentikan.
+- [x] `yarn build` dari root lulus (diperiksa ulang 2026-10-13 di `main` setelah merge PR #1, tanpa server dev berjalan)
 
 ### M2 â€” Auth & Master Data (Phase 2â€“3)
 
@@ -284,3 +284,4 @@ Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** ses
 | 2026-10-07 | — | Repo di-push ke GitHub (`main` = commit awal Phase 0–1) |
 | 2026-10-07 | M2 | Kode Phase 2 selesai di branch `feature/auth-authentication` (113 unit + 70 e2e test; 33 pemeriksaan di Supabase). 4 task terbukti penuh; 3 task `[~]` (Google, Email OTP, WhatsApp OTP) menunggu kredensial Google, Resend, Fonnte untuk uji integrasi. Branch di-push; PR belum dibuat |
 | 2026-10-07 | M2 | Checklist diperiksa ulang terhadap kondisi nyata: 10 selesai, 4 sebagian, 54 belum. `yarn build` root belum bisa diulang karena server dev sedang berjalan |
+| 2026-10-13 | M2 | PR #1 (Phase 2) di-merge ke `main`. Gerbang build M1 ditutup (`yarn build` root lulus). Phase 3 dimulai di branch `feature/core-master-data` |
