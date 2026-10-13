@@ -15,6 +15,7 @@ import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
 import { ERROR_CODES } from '../src/common/constants/error-codes';
+import { Public } from '../src/common/decorators/public.decorator';
 import { AuthRateLimit } from '../src/common/decorators/rate-limit.decorator';
 import { ResponseMessage } from '../src/common/decorators/response-message.decorator';
 import { PaginatedResult } from '../src/common/dto/paginated-result';
@@ -31,6 +32,7 @@ class ProbeDto {
   age!: number;
 }
 
+@Public()
 @Controller('probe')
 class ProbeController {
   @Get('auth')
@@ -116,7 +118,7 @@ describe('Global pipeline (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/probe/validate')
       .send({ name: '', age: 'abc' })
-      .expect(400);
+      .expect(422);
 
     expect(res.body).toMatchObject({
       success: false,
@@ -132,7 +134,7 @@ describe('Global pipeline (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/probe/validate')
       .send({ name: 'Ayu', age: 30, role: 'admin' })
-      .expect(400);
+      .expect(422);
 
     const body = bodyOf(res);
     expect(body.error_code).toBe('VALIDATION_ERROR');

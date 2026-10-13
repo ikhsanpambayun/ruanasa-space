@@ -14,5 +14,7 @@ export function buildCorsOptions(allowedOrigins: string[]): CorsOptions {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // Agar frontend dapat membaca token baru (sliding window) dari response.
+    exposedHeaders: ['X-Refreshed-Token'],
   };
 }

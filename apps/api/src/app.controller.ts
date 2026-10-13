@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 
 import { AppService, type HealthStatus } from './app.service';
+import { Public } from './common/decorators/public.decorator';
 import { ResponseMessage } from './common/decorators/response-message.decorator';
 
 @Controller()
@@ -12,6 +13,7 @@ export class AppController {
    *
    * @returns Status, timestamp, dan uptime.
    */
+  @Public()
   @Get('health')
   @ResponseMessage('OK')
   getHealth(): HealthStatus {
