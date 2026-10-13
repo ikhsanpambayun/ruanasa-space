@@ -5,6 +5,8 @@ import type { AuthProvider, User } from '@prisma/client';
 import {
   UserUniqueViolationError,
   type CreateUserData,
+  type EventHistoryRow,
+  type UpdateProfileData,
 } from '../../src/modules/users/users.repository';
 
 /**
@@ -13,6 +15,8 @@ import {
  */
 export class FakeUsersRepository {
   readonly users = new Map<string, User>();
+  /** Riwayat event per user yang diatur test (sudah terurut seperti hasil repository). */
+  readonly history = new Map<string, EventHistoryRow[]>();
 
   /**
    * Menambahkan user langsung ke penyimpanan (setup test).
@@ -94,6 +98,40 @@ export class FakeUsersRepository {
     return Promise.resolve(updated);
   }
 
+  /** Memperbarui profil; menolak phone/email yang dipakai akun lain (termasuk soft-deleted) seperti unique constraint. */
+  updateProfile(id: string, data: UpdateProfileData): Promise<User> {
+    const user = this.users.get(id);
+    if (!user) {
+      return Promise.reject(new Error('User not found'));
+    }
+    const others = [...this.users.values()].filter((other) => other.id !== id);
+    if (others.some((other) => other.phoneNumber === data.phoneNumber)) {
+      return Promise.reject(new UserUniqueViolationError('phone_number'));
+    }
+    if (others.some((other) => other.email === data.email)) {
+      return Promise.reject(new UserUniqueViolationError('email'));
+    }
+    const updated = {
+      ...user,
+      name: data.name,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+    };
+    this.users.set(id, updated);
+    return Promise.resolve(updated);
+  }
+
+  /** Riwayat event dari data yang diatur test, dengan pagination. */
+  findEventHistory(
+    userId: string,
+    window: { skip: number; take: number },
+  ): Promise<{ rows: EventHistoryRow[]; total: number }> {
+    const all = this.history.get(userId) ?? [];
+    return Promise.resolve({
+      rows: all.slice(window.skip, window.skip + window.take),
+      total: all.length,
+    });
+  }
   private active(): User[] {
     return [...this.users.values()].filter((user) => user.deletedAt === null);
   }
