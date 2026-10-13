@@ -186,7 +186,9 @@ describe('POST /auth/admin/login rate limit (e2e)', () => {
     const res = await attempt().expect(429);
 
     expect(bodyOf(res).error_code).toBe('RATE_LIMITED');
-  });
+    // Setiap percobaan menjalankan bcrypt 12 putaran (sengaja, agar waktu respons tidak membocorkan
+    // email admin), sehingga 11 percobaan butuh waktu lebih lama dari batas 5 detik bawaan Jest.
+  }, 30_000);
 });
 
 describe('POST /auth/auto-create (e2e)', () => {
