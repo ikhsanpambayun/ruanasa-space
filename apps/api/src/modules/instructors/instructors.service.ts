@@ -108,7 +108,7 @@ export class InstructorsService {
   }
 
   /**
-   * Mengganti seluruh data instruktur, termasuk daftar specialization.
+   * Mengganti seluruh data instruktur, termasuk daftar specialization. Field opsional yang tidak dikirim di-reset,\n   * kecuali status yang dipertahankan agar update tidak mengaktifkan kembali instruktur nonaktif.
    *
    * @param id - UUID instruktur.
    * @param dto - Data baru.
@@ -116,8 +116,8 @@ export class InstructorsService {
    * @throws AppException 404 bila tidak ada; 422 bila ada specialization_ids yang tidak ditemukan.
    */
   async update(id: string, dto: InstructorBodyDto): Promise<InstructorDetail> {
-    await this.getOrFail(id);
-    const data = await this.toData(dto);
+    const existing = await this.getOrFail(id);
+    const data = await this.toData(dto, existing.status);
     return toDetail(await this.repository.update(id, data));
   }
 
@@ -158,7 +158,10 @@ export class InstructorsService {
     return found;
   }
 
-  private async toData(dto: InstructorBodyDto): Promise<InstructorData> {
+  private async toData(
+    dto: InstructorBodyDto,
+    currentStatus: ActiveStatus = 'active',
+  ): Promise<InstructorData> {
     const specializationIds = dto.specialization_ids ?? [];
     const existing = new Set(
       await this.specializations.findExistingIds(specializationIds),
@@ -176,7 +179,7 @@ export class InstructorsService {
       profilePicture: dto.profile_picture ?? null,
       bio: dto.bio ?? null,
       contactInformation: dto.contact_information ?? null,
-      status: dto.status ?? 'active',
+      status: dto.status ?? currentStatus,
       specializationIds,
     };
   }

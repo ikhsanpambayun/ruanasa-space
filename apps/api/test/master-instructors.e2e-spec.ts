@@ -337,6 +337,20 @@ describe('Instructor API (e2e)', () => {
       });
     });
 
+    it('keeps the current status when status is omitted (update must not re-activate an inactive instructor)', async () => {
+      const id = repo.seed({ name: 'Cuti', status: 'inactive' });
+
+      const res = await http()
+        .put(`/api/v1/admin/instructors/${id}`)
+        .set(admin)
+        .send({ name: 'Cuti' })
+        .expect(200);
+
+      expect((res.body as Body<{ status: string }>).data.status).toBe(
+        'inactive',
+      );
+    });
+
     it('returns 404 for an unknown id and 422 for an unknown specialization', async () => {
       await http()
         .put(`/api/v1/admin/instructors/${UNKNOWN_ID}`)
