@@ -1,7 +1,9 @@
 import { applyDecorators } from '@nestjs/common';
 import { Transform } from 'class-transformer';
 import {
+  IsOptional,
   IsString,
+  IsUrl,
   MaxLength,
   MinLength,
   Validate,
@@ -52,4 +54,43 @@ class IsDateOnlyConstraint implements ValidatorConstraintInterface {
  */
 export function DateOnlyField(): PropertyDecorator {
   return applyDecorators(Validate(IsDateOnlyConstraint));
+}
+
+/**
+ * Field teks opsional dan boleh null: di-trim, string kosong dianggap null, dengan batas panjang.
+ *
+ * @param label - Nama field untuk pesan error.
+ * @param max - Panjang maksimal.
+ */
+export function OptionalText(label: string, max: number): PropertyDecorator {
+  return applyDecorators(
+    Transform(({ value }: { value: unknown }) => {
+      const trimmed = trimIfString(value);
+      return trimmed === '' ? null : trimmed;
+    }),
+    IsOptional(),
+    IsString({ message: `${label} harus berupa teks` }),
+    MaxLength(max, { message: `${label} maksimal ${max} karakter` }),
+  );
+}
+
+/**
+ * Field URL (http/https) opsional dan boleh null; string kosong dianggap null.
+ *
+ * @param label - Nama field untuk pesan error.
+ * @param max - Panjang maksimal.
+ */
+export function OptionalUrl(label: string, max: number): PropertyDecorator {
+  return applyDecorators(
+    Transform(({ value }: { value: unknown }) => {
+      const trimmed = trimIfString(value);
+      return trimmed === '' ? null : trimmed;
+    }),
+    IsOptional(),
+    IsUrl(
+      { protocols: ['http', 'https'], require_protocol: true },
+      { message: `${label} harus berupa URL yang valid` },
+    ),
+    MaxLength(max, { message: `${label} maksimal ${max} karakter` }),
+  );
 }
