@@ -10,7 +10,7 @@ Terakhir diperbarui: 2026-10-07
 
 | Item | Keterangan |
 |------|------------|
-| Posisi | Phase 0, 1, dan 2 selesai. Berikutnya: Phase 3 (Core Backend). |
+| Posisi | Phase 0 dan 1 selesai. Phase 2: kode selesai, 4 dari 7 task terbukti penuh dan 3 menunggu uji integrasi eksternal (Google, Resend, Fonnte). Berikutnya: Phase 3 (Core Backend), tidak bergantung pada ketiganya. |
 | Task | **10 selesai** Â· **4 sebagian** (menunggu kredensial atau uji runtime) Â· **54 belum** dari 68 |
 | Repo | https://github.com/ikhsanpambayun/ruanasa-space |
 | Git | `main` berisi Phase 0â€“1. Branch `feature/auth-authentication` (Phase 2) sudah di-push; **Pull Request belum dibuat/digabung** |
@@ -56,7 +56,7 @@ Terakhir diperbarui: 2026-10-07
 | Milestone | Phase | Kriteria selesai | Status |
 |-----------|-------|------------------|--------|
 | **M1 â€” Fondasi** | 0â€“1 | Monorepo, env, Prisma, 17 tabel termigrasi, seed berjalan | **Terpenuhi** (catatan: uji runtime frontend P0-INF-002 masih tertunda) |
-| **M2 â€” Auth & Master Data** | 2â€“3 | Semua metode login berfungsi; CRUD event, instruktur, template, harga, add-on, diskon, upload | **Berjalan** â€” Phase 2 selesai (3 task menunggu kredensial), Phase 3 belum dimulai |
+| **M2 â€” Auth & Master Data** | 2â€“3 | Semua metode login berfungsi; CRUD event, instruktur, template, harga, add-on, diskon, upload | **Berjalan** â€” kode Phase 2 selesai (3 dari 7 task menunggu kredensial untuk uji integrasi), Phase 3 belum dimulai |
 | **M3 â€” Transaksi (inti bisnis)** | 4 | Pricing engine, registrasi, pembayaran Midtrans, expiration job teruji | Belum mulai |
 | **M4 â€” Backend Lengkap** | 5â€“6 | Operasi admin, notifikasi, job terjadwal, analytics | Belum mulai |
 | **M5 â€” Frontend Participant** | 7â€“9 | Halaman publik, auth, wizard, payment, profil, feedback | Belum mulai |
@@ -282,5 +282,5 @@ Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** ses
 | 2026-10-06 | M1 | Phase 0 selesai (P0-INF-001 s.d. 004). P0-INF-002 masih `[~]` menunggu uji runtime frontend |
 | 2026-10-07 | M1 | Phase 1 selesai dan terverifikasi di Supabase (21 pemeriksaan data nyata lulus). Gerbang M1 terpenuhi |
 | 2026-10-07 | — | Repo di-push ke GitHub (`main` = commit awal Phase 0–1) |
-| 2026-10-07 | M2 | Phase 2 selesai di branch `feature/auth-authentication` (113 unit + 70 e2e test; 33 pemeriksaan di Supabase). Tiga task `[~]` menunggu kredensial Google, Resend, Fonnte. Branch di-push; PR belum dibuat |
+| 2026-10-07 | M2 | Kode Phase 2 selesai di branch `feature/auth-authentication` (113 unit + 70 e2e test; 33 pemeriksaan di Supabase). 4 task terbukti penuh; 3 task `[~]` (Google, Email OTP, WhatsApp OTP) menunggu kredensial Google, Resend, Fonnte untuk uji integrasi. Branch di-push; PR belum dibuat |
 | 2026-10-07 | M2 | Checklist diperiksa ulang terhadap kondisi nyata: 10 selesai, 4 sebagian, 54 belum. `yarn build` root belum bisa diulang karena server dev sedang berjalan |
