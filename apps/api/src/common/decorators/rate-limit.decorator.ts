@@ -45,3 +45,7 @@ export const UploadRateLimit = (): MethodDecorator & ClassDecorator =>
 /** Auto-create account: 5 request/menit. */
 export const AutoCreateRateLimit = (): MethodDecorator & ClassDecorator =>
   limitTo(RATE_LIMITS.AUTO_CREATE);
+
+/** Validasi kode promo: 20 request/menit. */
+export const PromoValidateRateLimit = (): MethodDecorator & ClassDecorator =>
+  limitTo(RATE_LIMITS.PROMO_VALIDATE);
