@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   MinLength,
   Validate,
@@ -11,7 +12,7 @@ import {
   type ValidatorConstraintInterface,
 } from 'class-validator';
 
-import { isValidDateOnly } from '../utils/date.util';
+import { isValidDateOnly, TIME_ONLY_PATTERN } from '../utils/date.util';
 
 /**
  * Mengubah string menjadi hasil trim; nilai non-string dibiarkan agar ditolak validator.
@@ -87,6 +88,34 @@ export function OptionalUrl(label: string, max: number): PropertyDecorator {
       return trimmed === '' ? null : trimmed;
     }),
     IsOptional(),
+    IsUrl(
+      { protocols: ['http', 'https'], require_protocol: true },
+      { message: `${label} harus berupa URL yang valid` },
+    ),
+    MaxLength(max, { message: `${label} maksimal ${max} karakter` }),
+  );
+}
+
+/**
+ * Field jam berformat HH:mm (24 jam).
+ *
+ * @param label - Nama field untuk pesan error.
+ */
+export function TimeOnlyField(label: string): PropertyDecorator {
+  return applyDecorators(
+    Matches(TIME_ONLY_PATTERN, { message: `${label} harus berformat HH:mm` }),
+  );
+}
+
+/**
+ * Field URL (http/https) wajib diisi.
+ *
+ * @param label - Nama field untuk pesan error.
+ * @param max - Panjang maksimal.
+ */
+export function RequiredUrl(label: string, max: number): PropertyDecorator {
+  return applyDecorators(
+    Transform(({ value }: { value: unknown }) => trimIfString(value)),
     IsUrl(
       { protocols: ['http', 'https'], require_protocol: true },
       { message: `${label} harus berupa URL yang valid` },

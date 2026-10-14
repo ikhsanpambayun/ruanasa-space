@@ -8,9 +8,13 @@ import {
   createWhatsAppProvider,
 } from './adapters/provider.factories';
 import { WHATSAPP_PROVIDER } from './adapters/whatsapp.adapter';
+import {
+  PostEventNotifier,
+  StubPostEventNotifier,
+} from './post-event.notifier';
 
 /**
- * Modul notifikasi. Saat ini menyediakan adapter provider email dan WhatsApp (dipakai OTP);
+ * Modul notifikasi. Saat ini menyediakan adapter provider email dan WhatsApp (dipakai OTP) serta stub notifier post-event;
  * orkestrasi notifikasi, job, dan notifikasi in-app admin ditambahkan di Phase 6.
  */
 @Module({
@@ -27,7 +31,8 @@ import { WHATSAPP_PROVIDER } from './adapters/whatsapp.adapter';
       useFactory: (config: ConfigService<Env, true>) =>
         createWhatsAppProvider(config),
     },
+    { provide: PostEventNotifier, useClass: StubPostEventNotifier },
   ],
-  exports: [EMAIL_PROVIDER, WHATSAPP_PROVIDER],
+  exports: [EMAIL_PROVIDER, WHATSAPP_PROVIDER, PostEventNotifier],
 })
 export class NotificationsModule {}

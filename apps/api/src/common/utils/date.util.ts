@@ -57,3 +57,27 @@ export function toWibIsoString(date: Date): string {
     .toISOString()
     .replace(/\.\d{3}Z$/, '+07:00');
 }
+
+/** Pola jam 24 jam berformat HH:mm. */
+export const TIME_ONLY_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Mengubah nilai kolom TIME (Date 1970-01-01 UTC) menjadi string HH:mm. Jam event disimpan sebagai
+ * waktu dinding WIB tanpa konversi zona waktu.
+ *
+ * @param time - Nilai dari database, atau null.
+ * @returns String HH:mm, atau null.
+ */
+export function formatTimeOnly(time: Date | null): string | null {
+  return time ? time.toISOString().slice(11, 16) : null;
+}
+
+/**
+ * Mengubah string HH:mm menjadi Date 1970-01-01 UTC untuk kolom TIME.
+ *
+ * @param value - Jam berformat HH:mm yang sudah divalidasi.
+ * @returns Date UTC.
+ */
+export function parseTimeOnly(value: string): Date {
+  return new Date(`1970-01-01T${value}:00.000Z`);
+}
