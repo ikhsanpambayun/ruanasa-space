@@ -10,11 +10,11 @@ Terakhir diperbarui: 2026-10-07
 
 | Item | Keterangan |
 |------|------------|
-| Posisi | Phase 0 dan 1 selesai. Phase 2: kode selesai, 4 dari 7 task terbukti penuh dan 3 menunggu uji integrasi eksternal (Google, Resend, Fonnte). Phase 3 berjalan: 4 dari 10 task selesai (001, 004, 005, 009); berikutnya event, harga, add-on, template, API publik, upload. |
-| Task | **14 selesai** · **4 sebagian** (menunggu kredensial atau uji runtime) · **50 belum** dari 68 |
+| Posisi | Phase 0 dan 1 selesai. Phase 2: kode selesai, 4 dari 7 task terbukti penuh dan 3 menunggu uji integrasi eksternal (Google, Resend, Fonnte). Phase 3 berjalan: 5 dari 10 task selesai (001, 002, 004, 005, 009); berikutnya harga, add-on, template, API publik, upload. |
+| Task | **15 selesai** · **4 sebagian** (menunggu kredensial atau uji runtime) · **49 belum** dari 68 |
 | Repo | https://github.com/ikhsanpambayun/ruanasa-space |
 | Git | `main` memuat Phase 0–2 (PR #1 sudah di-merge 2026-10-13). Phase 3 dikerjakan di branch `feature/core-master-data` |
-| Tes (API) | 113 unit + 192 e2e lulus; lint, typecheck, format bersih. Tes frontend belum ada (Phase 11) |
+| Tes (API) | 113 unit + 287 e2e lulus; lint, typecheck, format bersih. Tes frontend belum ada (Phase 11) |
 | Database | Supabase, 2 migrasi terapkan, seed terisi (admin + data contoh) |
 
 ---
@@ -118,7 +118,7 @@ Legenda: `[ ]` belum · `[~]` sebagian (kode dan tes selesai, tetapi ada accepta
 
 **Phase 3 — Core Backend**
 - [x] P3-BE-001 User Profile API *(2026-10-13: GET/PUT /users/profile, GET /users/event-history; khusus participant. Event history = registrasi confirmed (termasuk event mendatang) dengan status kehadiran peserta milik user; field profil terbatas pada name/email/phone sehingga role tidak bisa diubah. Diuji dengan data nyata di Supabase)*
-- [ ] P3-BE-002 Event CRUD API (publish, complete, duplicate)
+- [x] P3-BE-002 Event CRUD API (publish, complete, duplicate) *(2026-10-14: 10 endpoint admin. Perubahan status memakai update bersyarat (terbukti: publish serentak -> satu 200, satu 403). Draft boleh tanpa tanggal/jam, wajib saat publish. **Catatan: notifikasi post-event masih STUB** (hanya log "NOT sent"); `complete` dan `send-post-event` belum mengirim apa pun sampai P6-BE-004. Diuji di Supabase (38 pemeriksaan))*
 - [ ] P3-BE-003 Event Public API
 - [x] P3-BE-004 Instructor Management API *(2026-10-13: 6 endpoint, mapping specialization diganti atomik. Hapus diblokir 403 INSTRUCTOR_HAS_ACTIVE_EVENT bila masih ada event apa pun; template yang merujuk dilepas. Diuji di Supabase)*
 - [x] P3-BE-005 Specialization Management API *(2026-10-13: 4 endpoint, nama unik tanpa membedakan huruf besar/kecil. Diuji di Supabase)*
@@ -132,7 +132,7 @@ Legenda: `[ ]` belum · `[~]` sebagian (kode dan tes selesai, tetapi ada accepta
 - [~] Semua metode login lolos: admin, auto-create, OTP email/WhatsApp (adapter console), dan Google (verifier + logika) terbukti; pengiriman nyata (Resend, Fonnte) dan ID token Google asli belum
 - [x] Rate limit auth 10 req/menit (e2e) dan auto-create 5 req/menit
 - [x] OTP 6 digit, 5 menit, maks 5 percobaan, 3 request per 15 menit
-- [ ] CRUD event, instruktur, template, harga, add-on, diskon, dan upload (Phase 3): instruktur, specialization, dan diskon selesai; event, template, harga, add-on, dan upload belum
+- [ ] CRUD event, instruktur, template, harga, add-on, diskon, dan upload (Phase 3): event, instruktur, specialization, dan diskon selesai; template, harga, add-on, API publik, dan upload belum
 
 ### M3 — Transaksi (Phase 4)
 
@@ -245,6 +245,10 @@ CLAUDE.md mewajibkan persetujuan untuk perubahan schema/ERD, API contract, dan a
 | D14 | `POST /discount-codes/validate` dibatasi 20 request/menit | Mencegah tebak-tebakan kode promo; tidak ada di daftar rate limit TAD 8.7 | [ ] |
 | D15 | Kode promo: tanggal kedaluwarsa saat dibuat harus setelah hari ini (WIB); berlaku sampai akhir tanggal itu; kode tidak bisa diubah; kuota tidak boleh di bawah pemakaian; update tanpa `status` mempertahankan status lama | API Spec tidak merinci body update dan batas tanggal | [ ] |
 | D16 | `PUT` instruktur mengganti seluruh data (field opsional yang tidak dikirim di-reset, `status` dipertahankan); ID path yang bukan UUID dijawab 404 `NOT_FOUND` | Semantik PUT; kode `NOT_FOUND` dipakai untuk entitas tanpa kode khusus (perluasan D6) | [ ] |
+| D17 | `qr_code_url` dibuat di backend sebagai data URL PNG (paket `qrcode`), `public_url` = `FRONTEND_URL`/events/{id} | Kontrak meminta string URL; tanpa layanan QR pihak ketiga sehingga URL event tidak bocor | [ ] |
+| D18 | Update event: kapasitas tidak boleh di bawah peserta terdaftar; event published tidak boleh mengosongkan tanggal/jam atau mengganti `activity_type` (422); tanggal "tidak di masa lalu" hanya diperiksa bila tanggal diubah | Menjaga integritas slot; spec hanya menyebut `activity_type` | [ ] |
+| D19 | Duplicate menyalin stok add-on saat ini (`available_quantity`), bukan stok awal | Stok awal tidak disimpan di ERD | [ ] |
+| D20 | `complete` dan `send-post-event` memakai stub notifier yang tidak mengirim pesan (hanya log peringatan) sampai P6-BE-004 | DTBD P3-BE-002 menyuruh memakai interface/stub; endpoint manual membalas sukses sesuai spec padahal belum mengirim | [ ] |
 
 Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** sesuai API Spec (sebelumnya 400 di Phase 0).
 
@@ -263,6 +267,7 @@ Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** ses
 - [ ] Ganti password database / admin seed sebelum staging dan production
 
 **Perbaikan terjadwal**
+- [ ] Ganti `StubPostEventNotifier` dengan PostEventService nyata: sampai itu, `complete` dan `send-post-event` tidak mengirim notifikasi apa pun — P6-BE-004
 - [ ] Interceptor Axios: bedakan 401 sesi habis (`UNAUTHORIZED`) dari 401 gagal login (`AUTH_FAILED`) — P7-FE-003
 - [ ] CORS terpisah untuk `/payments/webhook` — P4-BE-003
 - [ ] Ganti penyimpanan OTP/blacklist ke Redis sebelum menjalankan lebih dari satu instance — P12-INF-002
@@ -289,4 +294,5 @@ Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** ses
 | 2026-10-07 | M2 | Kode Phase 2 selesai di branch `feature/auth-authentication` (113 unit + 70 e2e test; 33 pemeriksaan di Supabase). 4 task terbukti penuh; 3 task `[~]` (Google, Email OTP, WhatsApp OTP) menunggu kredensial Google, Resend, Fonnte untuk uji integrasi. Branch di-push; PR belum dibuat |
 | 2026-10-07 | M2 | Checklist diperiksa ulang terhadap kondisi nyata: 10 selesai, 4 sebagian, 54 belum. `yarn build` root belum bisa diulang karena server dev sedang berjalan |
 | 2026-10-13 | M2 | PR #1 (Phase 2) di-merge ke `main`. Gerbang build M1 ditutup (`yarn build` root lulus). Phase 3 dimulai di branch `feature/core-master-data` |
-| 2026-10-13 | M2 | Phase 3 (bagian 1) di branch `feature/core-master-data`: profil user, specialization, instruktur, kode diskon. 113 unit + 192 e2e lulus; 52 pemeriksaan di Supabase. Belum di-push/PR |
+| 2026-10-13 | M2 | Phase 3 (bagian 1) di branch `feature/core-master-data`: profil user, specialization, instruktur, kode diskon. 113 unit + 287 e2e lulus; 52 pemeriksaan di Supabase. Belum di-push/PR |
+| 2026-10-14 | M2 | P3-BE-002 (event admin) selesai di branch `feature/events-admin`. 113 unit + 287 e2e lulus; 38 pemeriksaan di Supabase. Notifikasi post-event masih stub. Belum di-push |
