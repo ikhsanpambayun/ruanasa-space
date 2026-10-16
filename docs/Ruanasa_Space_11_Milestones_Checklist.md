@@ -4,17 +4,17 @@ Dokumen pelacak progres. Sumber urutan dan detail task: **DTBD v1.6** (68 task, 
 
 Aturan kerja: satu task aktif per waktu, sesuai dependency. Centang task hanya setelah **Definition of Done** (bagian 3) terpenuhi.
 
-Terakhir diperbarui: 2026-10-07
+Terakhir diperbarui: 2026-10-16
 
 ## Status Saat Ini
 
 | Item | Keterangan |
 |------|------------|
-| Posisi | Phase 0 dan 1 selesai. Phase 2: kode selesai, 4 dari 7 task terbukti penuh dan 3 menunggu uji integrasi eksternal (Google, Resend, Fonnte). Phase 3 berjalan: 5 dari 10 task selesai (001, 002, 004, 005, 009); berikutnya harga, add-on, template, API publik, upload. |
-| Task | **15 selesai** · **4 sebagian** (menunggu kredensial atau uji runtime) · **49 belum** dari 68 |
+| Posisi | Phase 0 dan 1 selesai. Phase 2: kode selesai, 4 dari 7 task terbukti penuh dan 3 menunggu uji integrasi eksternal (Google, Resend, Fonnte). Phase 3 berjalan: 8 dari 10 task selesai (001, 002, 004, 005, 006, 007, 008, 009); berikutnya API publik (003) dan upload poster (010). |
+| Task | **18 selesai** · **4 sebagian** (menunggu kredensial atau uji runtime) · **46 belum** dari 68 |
 | Repo | https://github.com/ikhsanpambayun/ruanasa-space |
-| Git | `main` memuat Phase 0–2 (PR #1 sudah di-merge 2026-10-13). Phase 3 dikerjakan di branch `feature/core-master-data` |
-| Tes (API) | 113 unit + 287 e2e lulus; lint, typecheck, format bersih. Tes frontend belum ada (Phase 11) |
+| Git | `main` memuat Phase 0–2 (PR #1 sudah di-merge 2026-10-13). Phase 3 dikerjakan berantai: `feature/core-master-data` → `feature/events-admin` (HEAD saat ini). Keduanya sudah di-push; PR belum dibuat |
+| Tes (API) | 113 unit + 390 e2e lulus; lint, typecheck, format bersih. Tes frontend belum ada (Phase 11) |
 | Database | Supabase, 2 migrasi terapkan, seed terisi (admin + data contoh) |
 
 ---
@@ -56,7 +56,7 @@ Terakhir diperbarui: 2026-10-07
 | Milestone | Phase | Kriteria selesai | Status |
 |-----------|-------|------------------|--------|
 | **M1 — Fondasi** | 0–1 | Monorepo, env, Prisma, 17 tabel termigrasi, seed berjalan | **Terpenuhi** (catatan: uji runtime frontend P0-INF-002 masih tertunda) |
-| **M2 — Auth & Master Data** | 2–3 | Semua metode login berfungsi; CRUD event, instruktur, template, harga, add-on, diskon, upload | **Berjalan** — kode Phase 2 selesai (3 dari 7 task menunggu kredensial untuk uji integrasi), Phase 3 belum dimulai |
+| **M2 — Auth & Master Data** | 2–3 | Semua metode login berfungsi; CRUD event, instruktur, template, harga, add-on, diskon, upload | **Berjalan** — kode Phase 2 selesai (3 dari 7 task menunggu kredensial untuk uji integrasi); Phase 3: 8 dari 10 task selesai, sisa API publik dan upload |
 | **M3 — Transaksi (inti bisnis)** | 4 | Pricing engine, registrasi, pembayaran Midtrans, expiration job teruji | Belum mulai |
 | **M4 — Backend Lengkap** | 5–6 | Operasi admin, notifikasi, job terjadwal, analytics | Belum mulai |
 | **M5 — Frontend Participant** | 7–9 | Halaman publik, auth, wizard, payment, profil, feedback | Belum mulai |
@@ -122,9 +122,9 @@ Legenda: `[ ]` belum · `[~]` sebagian (kode dan tes selesai, tetapi ada accepta
 - [ ] P3-BE-003 Event Public API
 - [x] P3-BE-004 Instructor Management API *(2026-10-13: 6 endpoint, mapping specialization diganti atomik. Hapus diblokir 403 INSTRUCTOR_HAS_ACTIVE_EVENT bila masih ada event apa pun; template yang merujuk dilepas. Diuji di Supabase)*
 - [x] P3-BE-005 Specialization Management API *(2026-10-13: 4 endpoint, nama unik tanpa membedakan huruf besar/kecil. Diuji di Supabase)*
-- [ ] P3-BE-006 Event Template Management API
-- [ ] P3-BE-007 Event Pricing Management API
-- [ ] P3-BE-008 Add-on Management API
+- [x] P3-BE-006 Event Template Management API *(2026-10-16: 5 endpoint di `/admin/event-templates` (path sama dengan API Spec 7). Instruktur harus aktif dan hanya divalidasi bila berubah, jadi template dengan instruktur yang kemudian nonaktif tetap bisa diedit; PUT mengganti seluruh data. Hapus template tidak menghapus event (`template_id` → NULL, terbukti di Supabase). Diuji di Supabase)*
+- [x] P3-BE-007 Event Pricing Management API *(2026-10-16: `GET /pricing` + CRUD `/prices` dan `/pricing-rules`. Aturan: satu harga normal aktif per event; periode early bird aktif tidak boleh bertabrakan; event published wajib punya harga normal aktif (400 `MISSING_PRICE`); bundle unik per jumlah minimum, persentase ≤ 100; event completed hanya-baca. **Perubahan harga diserialkan per event dengan `SELECT … FOR UPDATE`** karena uji di Supabase membuktikan tanpa kunci, request serentak menghasilkan dua harga normal aktif (5 dari 5 putaran). Lihat D21 dan D23. Diuji di Supabase)*
+- [x] P3-BE-008 Add-on Management API *(2026-10-16: 4 endpoint di `/admin/events/{id}/addons`. Event completed hanya-baca; add-on yang sudah dipakai registrasi tidak bisa dihapus (422, disarankan menonaktifkan), FK RESTRICT terbukti di Supabase. Lihat D22. Diuji di Supabase)*
 - [x] P3-BE-009 Discount Code Management API *(2026-10-13: list/create/update admin + validate peserta (dibatasi 20/menit). Diuji di Supabase termasuk tanggal kedaluwarsa dan semua kode error promo)*
 - [ ] P3-BE-010 File Upload API
 
@@ -132,7 +132,7 @@ Legenda: `[ ]` belum · `[~]` sebagian (kode dan tes selesai, tetapi ada accepta
 - [~] Semua metode login lolos: admin, auto-create, OTP email/WhatsApp (adapter console), dan Google (verifier + logika) terbukti; pengiriman nyata (Resend, Fonnte) dan ID token Google asli belum
 - [x] Rate limit auth 10 req/menit (e2e) dan auto-create 5 req/menit
 - [x] OTP 6 digit, 5 menit, maks 5 percobaan, 3 request per 15 menit
-- [ ] CRUD event, instruktur, template, harga, add-on, diskon, dan upload (Phase 3): event, instruktur, specialization, dan diskon selesai; template, harga, add-on, API publik, dan upload belum
+- [ ] CRUD event, instruktur, template, harga, add-on, diskon, dan upload (Phase 3): event, instruktur, specialization, diskon, template, harga, dan add-on selesai; API publik dan upload belum
 
 ### M3 — Transaksi (Phase 4)
 
@@ -249,6 +249,9 @@ CLAUDE.md mewajibkan persetujuan untuk perubahan schema/ERD, API contract, dan a
 | D18 | Update event: kapasitas tidak boleh di bawah peserta terdaftar; event published tidak boleh mengosongkan tanggal/jam atau mengganti `activity_type` (422); tanggal "tidak di masa lalu" hanya diperiksa bila tanggal diubah | Menjaga integritas slot; spec hanya menyebut `activity_type` | [ ] |
 | D19 | Duplicate menyalin stok add-on saat ini (`available_quantity`), bukan stok awal | Stok awal tidak disimpan di ERD | [ ] |
 | D20 | `complete` dan `send-post-event` memakai stub notifier yang tidak mengirim pesan (hanya log peringatan) sampai P6-BE-004 | DTBD P3-BE-002 menyuruh memakai interface/stub; endpoint manual membalas sukses sesuai spec padahal belum mengirim | [ ] |
+| D21 | Aturan harga: satu harga normal aktif per event; periode early bird aktif tidak boleh bertabrakan (hari batas ikut dihitung); event published selalu punya minimal satu harga normal aktif (400 `MISSING_PRICE` bila yang terakhir dinonaktifkan, diubah tipenya, atau dihapus); bundle: jumlah minimum 2–1000 dan unik per event, persentase ≤ 100; harga, aturan, dan add-on tidak bisa diubah pada event completed (403 `EVENT_COMPLETED`); PUT mengganti seluruh data dan mempertahankan `status` bila tidak dikirim (perluasan D16) | API Spec hanya menyebut `MISSING_PRICE` saat publish; tanpa aturan ini perhitungan harga Phase 4 menjadi ambigu (dua harga normal) atau event yang sudah dijual kehilangan harga | [ ] |
+| D22 | Add-on yang sudah dipakai registrasi tidak bisa dihapus: 422 `VALIDATION_ERROR` dengan pesan yang menyarankan menonaktifkan | FK `registration_addons.addon_id` RESTRICT menjaga riwayat registrasi; API Spec tidak punya kode error khusus untuk kasus ini | [ ] |
+| D23 | Tambah/ubah/hapus harga berjalan dalam transaksi yang mengunci baris event (`SELECT … FOR UPDATE`); ini transaksi interaktif + raw SQL pertama di kodebase | Keunikan harga normal aktif dan periode early bird tidak punya constraint DB; di Supabase dua request serentak menghasilkan dua harga normal aktif pada 5 dari 5 putaran. Efek samping: edit harga menunggu sesaat transaksi lain yang mengunci event yang sama (mis. registrasi Phase 4). Alternatif tanpa kunci: unique index parsial `event_prices(event_id) WHERE price_type='normal' AND status='active'`, tetapi itu mengubah schema | [ ] |
 
 Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** sesuai API Spec (sebelumnya 400 di Phase 0).
 
@@ -273,7 +276,9 @@ Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** ses
 - [ ] Ganti penyimpanan OTP/blacklist ke Redis sebelum menjalankan lebih dari satu instance — P12-INF-002
 - [ ] Jadikan skrip verifikasi database (saat ini di luar repo) sebagai test integrasi permanen — P11-TEST-001
 - [ ] Uji runtime frontend (devtools, redirect 401, store) — P11-TEST-002
-- [ ] Cek path template di API Spec saat P3-BE-006 (TAD 6.1 menulis `/admin/event-templates`)
+- [x] Cek path template di API Spec saat P3-BE-006: API Spec 7 juga `/admin/event-templates`, tidak ada konflik
+- [ ] Balapan `publish` vs ubah/hapus harga: `publish` memeriksa harga lalu menulis status tanpa kunci, jadi menghapus harga normal terakhir tepat saat publish bisa meninggalkan event published tanpa harga normal aktif. Perbaikan: `publish` ikut mengunci baris event dan memeriksa ulang harga dalam transaksi yang sama — kerjakan sebelum P4-BE-002
+- [ ] Add-on: `PUT` menimpa `available_quantity` dengan nilai kiriman admin, sehingga form edit yang basi dapat menghapus pengurangan stok oleh registrasi yang masuk. P4-BE-002 wajib memakai pengurangan stok atomik (`UPDATE … WHERE available_quantity >= n`); form admin (Phase 10) harus memuat data terbaru sebelum menyimpan
 - [ ] Perbarui dokumen spesifikasi: font Jost, header `X-Refreshed-Token` (API Spec 2.3)
 - [ ] `prisma db pull` belum dijalankan terpisah (koneksi dan query sudah terbukti)
 
@@ -296,3 +301,4 @@ Koreksi kepatuhan (bukan keputusan baru): validasi DTO sekarang HTTP **422** ses
 | 2026-10-13 | M2 | PR #1 (Phase 2) di-merge ke `main`. Gerbang build M1 ditutup (`yarn build` root lulus). Phase 3 dimulai di branch `feature/core-master-data` |
 | 2026-10-13 | M2 | Phase 3 (bagian 1) di branch `feature/core-master-data`: profil user, specialization, instruktur, kode diskon. 113 unit + 287 e2e lulus; 52 pemeriksaan di Supabase. Belum di-push/PR |
 | 2026-10-14 | M2 | P3-BE-002 (event admin) selesai di branch `feature/events-admin`. 113 unit + 287 e2e lulus; 38 pemeriksaan di Supabase. Notifikasi post-event masih stub. Belum di-push |
+| 2026-10-16 | M2 | P3-BE-006/007/008 (template, harga + aturan bundle, add-on) selesai di `feature/events-admin`. 113 unit + 390 e2e lulus; 82 pemeriksaan di Supabase. Uji di database asli menemukan balapan pada harga normal aktif (5 dari 5 putaran menghasilkan dua harga); diperbaiki dengan kunci baris event (D23) dan dibuktikan ulang. Branch `feature/events-admin` di-push bersama `feature/core-master-data`; PR belum dibuat |
