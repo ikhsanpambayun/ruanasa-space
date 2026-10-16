@@ -1,7 +1,17 @@
-﻿import { Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+
+import { EventsModule } from '../events/events.module';
+import { AddonsController } from './addons.controller';
+import { AddonsRepository } from './addons.repository';
+import { AddonsService } from './addons.service';
 
 /**
- * Modul addons. Controller, service, dan repository ditambahkan pada task fase terkait (DTBD v1.6).
+ * Modul add-on event (P3-BE-008). Pengurangan dan pengembalian stok oleh registrasi ditambahkan di Phase 4.
  */
-@Module({})
+@Module({
+  imports: [EventsModule],
+  controllers: [AddonsController],
+  providers: [AddonsService, AddonsRepository],
+  exports: [AddonsRepository],
+})
 export class AddonsModule {}
