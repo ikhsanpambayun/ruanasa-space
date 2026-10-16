@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { EventPrice, EventPricingRule } from '@prisma/client';
 
 import {
+  PriceNotFoundError,
   PricingRuleQuantityTakenError,
   type PriceData,
+  type PriceGuard,
   type PricingRuleData,
 } from '../../src/modules/pricing/pricing.repository';
 
@@ -79,32 +81,38 @@ export class FakePricingRepository {
     return Promise.resolve({ prices, rules });
   }
 
-  listActivePrices(eventId: string): Promise<EventPrice[]> {
-    return Promise.resolve(
-      [...this.prices.values()].filter(
-        (p) => p.eventId === eventId && p.status === 'active',
-      ),
-    );
-  }
-
   findPrice(eventId: string, priceId: string): Promise<EventPrice | null> {
     const price = this.prices.get(priceId);
     return Promise.resolve(price && price.eventId === eventId ? price : null);
   }
 
-  createPrice(eventId: string, data: PriceData): Promise<EventPrice> {
-    return Promise.resolve(this.seedPrice(eventId, data));
+  createPrice(
+    eventId: string,
+    data: PriceData,
+    guard: PriceGuard,
+  ): Promise<EventPrice> {
+    return this.guarded(eventId, guard, () => this.seedPrice(eventId, data));
   }
 
-  updatePrice(id: string, data: PriceData): Promise<EventPrice> {
-    const updated = { ...(this.prices.get(id) as EventPrice), ...data };
-    this.prices.set(id, updated);
-    return Promise.resolve(updated);
+  updatePrice(
+    eventId: string,
+    id: string,
+    data: PriceData,
+    guard: PriceGuard,
+  ): Promise<EventPrice> {
+    return this.guarded(eventId, guard, () => {
+      const existing = this.ownedPrice(eventId, id);
+      const updated = { ...existing, ...data };
+      this.prices.set(id, updated);
+      return updated;
+    });
   }
 
-  deletePrice(id: string): Promise<void> {
-    this.prices.delete(id);
-    return Promise.resolve();
+  deletePrice(eventId: string, id: string, guard: PriceGuard): Promise<void> {
+    return this.guarded(eventId, guard, () => {
+      this.ownedPrice(eventId, id);
+      this.prices.delete(id);
+    });
   }
 
   findRule(eventId: string, ruleId: string): Promise<EventPricingRule | null> {
@@ -146,6 +154,34 @@ export class FakePricingRepository {
   deleteRule(id: string): Promise<void> {
     this.rules.delete(id);
     return Promise.resolve();
+  }
+
+  /** Meniru transaksi terkunci repository asli: guard atas harga aktif, lalu tulis; error menjadi promise ditolak. */
+  private guarded<T>(
+    eventId: string,
+    guard: PriceGuard,
+    write: () => T,
+  ): Promise<T> {
+    try {
+      guard(
+        [...this.prices.values()].filter(
+          (p) => p.eventId === eventId && p.status === 'active',
+        ),
+      );
+      return Promise.resolve(write());
+    } catch (error) {
+      return Promise.reject(
+        error instanceof Error ? error : new Error(String(error)),
+      );
+    }
+  }
+
+  private ownedPrice(eventId: string, id: string): EventPrice {
+    const price = this.prices.get(id);
+    if (!price || price.eventId !== eventId) {
+      throw new PriceNotFoundError();
+    }
+    return price;
   }
 
   private hasQuantity(

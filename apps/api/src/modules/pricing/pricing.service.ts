@@ -14,6 +14,7 @@ import { formatDateOnly, parseDateOnly } from '../../common/utils/date.util';
 import { EventsService } from '../events/events.service';
 import type { PriceBodyDto, PricingRuleBodyDto } from './dto/pricing.dto';
 import {
+  PriceNotFoundError,
   PricingRepository,
   PricingRuleQuantityTakenError,
   type PriceData,
@@ -95,8 +96,12 @@ export class PricingService {
   ): Promise<PriceResponse> {
     await this.events.requireEditableEvent(eventId);
     const data = toPriceData(dto, 'active');
-    await this.assertPriceRules(eventId, data, null);
-    return toPriceResponse(await this.repository.createPrice(eventId, data));
+    this.assertPriceShape(data);
+    return toPriceResponse(
+      await this.repository.createPrice(eventId, data, (active) => {
+        this.assertPriceConflicts(data, active, null);
+      }),
+    );
   }
 
   /**
@@ -117,13 +122,21 @@ export class PricingService {
     const event = await this.events.requireEditableEvent(eventId);
     const existing = await this.getPriceOrFail(eventId, priceId);
     const data = toPriceData(dto, existing.status);
-    const others = await this.assertPriceRules(eventId, data, priceId);
-    this.assertPublishedKeepsNormalPrice(
-      event,
-      others,
-      data.priceType === 'normal' && data.status === 'active',
-    );
-    return toPriceResponse(await this.repository.updatePrice(priceId, data));
+    this.assertPriceShape(data);
+    try {
+      return toPriceResponse(
+        await this.repository.updatePrice(eventId, priceId, data, (active) => {
+          const others = this.assertPriceConflicts(data, active, priceId);
+          this.assertPublishedKeepsNormalPrice(
+            event,
+            others,
+            data.priceType === 'normal' && data.status === 'active',
+          );
+        }),
+      );
+    } catch (error) {
+      throw error instanceof PriceNotFoundError ? this.priceNotFound() : error;
+    }
   }
 
   /**
@@ -136,10 +149,14 @@ export class PricingService {
   async removePrice(eventId: string, priceId: string): Promise<void> {
     const event = await this.events.requireEditableEvent(eventId);
     await this.getPriceOrFail(eventId, priceId);
-    const active = await this.repository.listActivePrices(eventId);
-    const others = active.filter((price) => price.id !== priceId);
-    this.assertPublishedKeepsNormalPrice(event, others, false);
-    await this.repository.deletePrice(priceId);
+    try {
+      await this.repository.deletePrice(eventId, priceId, (active) => {
+        const others = active.filter((price) => price.id !== priceId);
+        this.assertPublishedKeepsNormalPrice(event, others, false);
+      });
+    } catch (error) {
+      throw error instanceof PriceNotFoundError ? this.priceNotFound() : error;
+    }
   }
 
   /**
@@ -205,18 +222,13 @@ export class PricingService {
   }
 
   /**
-   * Memeriksa aturan jenis harga dan keunikan terhadap harga aktif lain.
+   * Memeriksa bentuk data harga tanpa akses data: harga normal tidak memakai periode, sedangkan early bird
+   * wajib memiliki periode yang valid.
    *
-   * @param eventId - UUID event.
    * @param data - Data harga yang akan disimpan.
-   * @param selfId - UUID harga yang sedang diubah (dikecualikan dari pemeriksaan), atau null saat membuat.
-   * @returns Harga aktif lain pada event (tanpa harga ini).
+   * @throws AppException 422 bila bentuk data tidak valid.
    */
-  private async assertPriceRules(
-    eventId: string,
-    data: PriceData,
-    selfId: string | null,
-  ): Promise<EventPrice[]> {
+  private assertPriceShape(data: PriceData): void {
     const errors: Record<string, string[]> = {};
     const start = formatDateOnly(data.startDate);
     const end = formatDateOnly(data.endDate);
@@ -251,9 +263,28 @@ export class PricingService {
       }
     }
 
-    const others = (await this.repository.listActivePrices(eventId)).filter(
-      (price) => price.id !== selfId,
-    );
+    this.throwIfInvalid(errors);
+  }
+
+  /**
+   * Memeriksa keunikan terhadap harga aktif lain: hanya satu harga normal aktif per event dan periode early bird
+   * aktif tidak boleh bertabrakan. Dijalankan di dalam transaksi terkunci milik repository.
+   *
+   * @param data - Data harga yang akan disimpan.
+   * @param activePrices - Seluruh harga aktif event saat ini.
+   * @param selfId - UUID harga yang sedang diubah (dikecualikan dari pemeriksaan), atau null saat membuat.
+   * @returns Harga aktif lain pada event (tanpa harga ini).
+   * @throws AppException 422 bila bertabrakan dengan harga aktif lain.
+   */
+  private assertPriceConflicts(
+    data: PriceData,
+    activePrices: EventPrice[],
+    selfId: string | null,
+  ): EventPrice[] {
+    const errors: Record<string, string[]> = {};
+    const start = formatDateOnly(data.startDate);
+    const end = formatDateOnly(data.endDate);
+    const others = activePrices.filter((price) => price.id !== selfId);
     if (data.status === 'active') {
       if (
         data.priceType === 'normal' &&
@@ -353,13 +384,17 @@ export class PricingService {
   ): Promise<EventPrice> {
     const found = await this.repository.findPrice(eventId, priceId);
     if (!found) {
-      throw new AppException(
-        HttpStatus.NOT_FOUND,
-        ERROR_CODES.NOT_FOUND,
-        'Harga tidak ditemukan',
-      );
+      throw this.priceNotFound();
     }
     return found;
+  }
+
+  private priceNotFound(): AppException {
+    return new AppException(
+      HttpStatus.NOT_FOUND,
+      ERROR_CODES.NOT_FOUND,
+      'Harga tidak ditemukan',
+    );
   }
 
   private async getRuleOrFail(

@@ -41,6 +41,23 @@ export class PricingRuleQuantityTakenError extends Error {
 }
 
 /**
+ * Dilempar saat harga tidak (lagi) ada pada event ketika transaksi berjalan, mis. dihapus oleh request lain.
+ */
+export class PriceNotFoundError extends Error {
+  constructor() {
+    super('The price no longer exists for the event');
+    this.name = 'PriceNotFoundError';
+  }
+}
+
+/**
+ * Pemeriksaan bisnis yang dijalankan di dalam transaksi terkunci. Melempar exception bila perubahan tidak boleh dilakukan.
+ *
+ * @param activePrices - Harga berstatus active pada event saat kunci sudah dipegang.
+ */
+export type PriceGuard = (activePrices: EventPrice[]) => void;
+
+/**
  * Akses data tabel event_prices dan event_pricing_rules.
  */
 @Injectable()
@@ -77,16 +94,6 @@ export class PricingRepository {
 
   /**
    * @param eventId - UUID event.
-   * @returns Harga berstatus active pada event (dasar validasi keunikan dan periode).
-   */
-  listActivePrices(eventId: string): Promise<EventPrice[]> {
-    return this.prisma.eventPrice.findMany({
-      where: { eventId, status: 'active' },
-    });
-  }
-
-  /**
-   * @param eventId - UUID event.
    * @param priceId - UUID harga.
    * @returns Harga milik event tersebut, atau null.
    */
@@ -97,28 +104,74 @@ export class PricingRepository {
   }
 
   /**
+   * Membuat harga bila `guard` menyetujui. Seluruh langkah berjalan dalam satu transaksi yang mengunci baris event
+   * (SELECT ... FOR UPDATE), sehingga perubahan harga bersamaan pada event yang sama berjalan berurutan dan
+   * pemeriksaan keunikan tidak bisa dilewati dua request yang datang bersamaan.
+   *
    * @param eventId - UUID event.
    * @param data - Data harga.
+   * @param guard - Pemeriksaan bisnis atas harga aktif event.
    * @returns Harga yang dibuat.
    */
-  createPrice(eventId: string, data: PriceData): Promise<EventPrice> {
-    return this.prisma.eventPrice.create({ data: { eventId, ...data } });
+  createPrice(
+    eventId: string,
+    data: PriceData,
+    guard: PriceGuard,
+  ): Promise<EventPrice> {
+    return this.prisma.$transaction(async (tx) => {
+      guard(await this.lockEventAndListActivePrices(tx, eventId));
+      return tx.eventPrice.create({ data: { eventId, ...data } });
+    });
   }
 
   /**
+   * Memperbarui harga bila `guard` menyetujui; berjalan dalam transaksi terkunci seperti {@link createPrice}.
+   *
+   * @param eventId - UUID event.
    * @param id - UUID harga.
    * @param data - Data baru.
+   * @param guard - Pemeriksaan bisnis atas harga aktif event.
    * @returns Harga setelah diperbarui.
+   * @throws PriceNotFoundError bila harga sudah tidak ada pada event.
    */
-  updatePrice(id: string, data: PriceData): Promise<EventPrice> {
-    return this.prisma.eventPrice.update({ where: { id }, data });
+  updatePrice(
+    eventId: string,
+    id: string,
+    data: PriceData,
+    guard: PriceGuard,
+  ): Promise<EventPrice> {
+    return this.prisma.$transaction(async (tx) => {
+      guard(await this.lockEventAndListActivePrices(tx, eventId));
+      const { count } = await tx.eventPrice.updateMany({
+        where: { id, eventId },
+        data,
+      });
+      if (count === 0) {
+        throw new PriceNotFoundError();
+      }
+      return tx.eventPrice.findUniqueOrThrow({ where: { id } });
+    });
   }
 
   /**
-   * @param id - UUID harga. Registrasi menyimpan total hasil perhitungan sendiri sehingga tidak merujuk baris harga.
+   * Menghapus harga bila `guard` menyetujui; berjalan dalam transaksi terkunci seperti {@link createPrice}.
+   * Registrasi menyimpan total hasil perhitungannya sendiri sehingga tidak merujuk baris harga.
+   *
+   * @param eventId - UUID event.
+   * @param id - UUID harga.
+   * @param guard - Pemeriksaan bisnis atas harga aktif event.
+   * @throws PriceNotFoundError bila harga sudah tidak ada pada event.
    */
-  async deletePrice(id: string): Promise<void> {
-    await this.prisma.eventPrice.delete({ where: { id } });
+  deletePrice(eventId: string, id: string, guard: PriceGuard): Promise<void> {
+    return this.prisma.$transaction(async (tx) => {
+      guard(await this.lockEventAndListActivePrices(tx, eventId));
+      const { count } = await tx.eventPrice.deleteMany({
+        where: { id, eventId },
+      });
+      if (count === 0) {
+        throw new PriceNotFoundError();
+      }
+    });
   }
 
   /**
@@ -187,6 +240,22 @@ export class PricingRepository {
    */
   async deleteRule(id: string): Promise<void> {
     await this.prisma.eventPricingRule.delete({ where: { id } });
+  }
+
+  /**
+   * Mengunci baris event lalu membaca harga aktifnya. Pembacaan dilakukan SETELAH kunci didapat agar melihat
+   * hasil transaksi lain yang sebelumnya memegang kunci yang sama.
+   *
+   * @param tx - Klien transaksi.
+   * @param eventId - UUID event.
+   * @returns Harga berstatus active pada event.
+   */
+  private async lockEventAndListActivePrices(
+    tx: Prisma.TransactionClient,
+    eventId: string,
+  ): Promise<EventPrice[]> {
+    await tx.$queryRaw`SELECT id FROM events WHERE id = ${eventId}::uuid FOR UPDATE`;
+    return tx.eventPrice.findMany({ where: { eventId, status: 'active' } });
   }
 
   private translate(error: unknown): unknown {
