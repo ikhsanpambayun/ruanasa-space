@@ -435,6 +435,35 @@ export class EventsService {
     await this.postEvent.notifyEventCompleted(id);
   }
 
+  /**
+   * Memuat event untuk operasi baca oleh modul terkait (harga, add-on).
+   *
+   * @param id - UUID event.
+   * @returns Event.
+   * @throws AppException 404 EVENT_NOT_FOUND.
+   */
+  requireEvent(id: string): Promise<Event> {
+    return this.getOrFail(id);
+  }
+
+  /**
+   * Memuat event untuk operasi ubah oleh modul terkait (harga, add-on). Event completed tidak dapat diubah.
+   *
+   * @param id - UUID event.
+   * @returns Event.
+   * @throws AppException 404 EVENT_NOT_FOUND; 403 EVENT_COMPLETED.
+   */
+  async requireEditableEvent(id: string): Promise<Event> {
+    const event = await this.getOrFail(id);
+    if (event.status === 'completed') {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ERROR_CODES.EVENT_COMPLETED,
+        'Event yang sudah selesai tidak dapat diubah',
+      );
+    }
+    return event;
+  }
   private async getOrFail(id: string): Promise<Event> {
     const found = await this.repository.findById(id);
     if (!found) {

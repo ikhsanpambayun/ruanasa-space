@@ -1,3 +1,5 @@
+import type { TestingModuleBuilder } from '@nestjs/testing';
+
 import { todayInWib } from '../../src/common/utils/date.util';
 import { InstructorsRepository } from '../../src/modules/instructors/instructors.repository';
 import { PostEventNotifier } from '../../src/modules/notifications/post-event.notifier';
@@ -43,14 +45,18 @@ export interface EventsTestContext {
  *
  * @returns Konteks test.
  */
-export async function setupEventsApp(): Promise<EventsTestContext> {
+export async function setupEventsApp(
+  extraConfigure: (builder: TestingModuleBuilder) => TestingModuleBuilder = (
+    builder,
+  ) => builder,
+): Promise<EventsTestContext> {
   const specs = new FakeSpecializationsRepository();
   const instructors = new FakeInstructorsRepository(specs);
   const events = new FakeEventsRepository(instructors);
   const notifier = new FakePostEventNotifier();
   const ctx = await createTestApp({
     configure: (builder) =>
-      builder
+      extraConfigure(builder)
         .overrideProvider(InstructorsRepository)
         .useValue(instructors)
         .overrideProvider(EventsRepository)
